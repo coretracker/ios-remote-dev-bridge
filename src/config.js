@@ -86,7 +86,7 @@ function buildConfig() {
 
   const allowedEnvKeys = asList(
     process.env.ALLOWED_ENV_KEYS,
-    ['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'DEVELOPER_DIR', 'SDKROOT', 'TMPDIR']
+    ['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'DEVELOPER_DIR', 'SDKROOT', 'TMPDIR', 'HARNESS_FORMAT_MODE']
   );
 
   const allowlistExtra = asList(process.env.ALLOWED_COMMAND_KEYS, []);
