@@ -1,0 +1,18 @@
+{
+  "name": "remote-dev-bridge-service",
+  "version": "1.0.0",
+  "description": "Repo-agnostic HTTP bridge for remote development workflows",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/*.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2"
+  }
+}
