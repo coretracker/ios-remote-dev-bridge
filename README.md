@@ -37,7 +37,7 @@ If a command key is not found, the API explains what was checked and how to fix 
 
 - Token auth with `Authorization: Bearer <API_TOKEN>`
 - No arbitrary shell endpoint
-- Non-script commands are limited to approved tools
+- Non-script commands are limited to approved tools such as `swift`, `xcodebuild`, `xcrun`, `bundle`, and `swiftformat`
 - Script execution is limited to discovered repo-local workflow files
 - Environment variables are filtered
 - Sensitive values are hidden in logs

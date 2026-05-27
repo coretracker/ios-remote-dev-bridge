@@ -65,7 +65,8 @@ async function getCapabilities() {
     probeExecutable('swift', ['--version']),
     probeExecutable('xcodebuild', ['-version']),
     probeExecutable('xcrun', ['--version']),
-    probeExecutable('bundle', ['--version'])
+    probeExecutable('bundle', ['--version']),
+    probeExecutable('swiftformat', ['--version'])
   ]);
 
   return {

@@ -80,6 +80,7 @@ Allowed non-script tools currently include:
 - `xcodebuild`
 - `xcrun`
 - `bundle`
+- `swiftformat`
 - `make`
 - `npm`
 - `pnpm`
