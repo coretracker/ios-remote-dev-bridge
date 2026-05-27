@@ -73,7 +73,7 @@ Each job runs in an isolated workspace under `WORK_ROOT/<job-id>` with:
 
 ## API reference
 
-See [API.md](/task-workspaces/Y4rX37Vw-NR5mlg5vIzIH/docs/API.md).
+See [API.md](/task-workspaces/z4fi8BH5uiWftfztCuA-Q/docs/API.md).
 
 ## Example requests
 
@@ -100,6 +100,30 @@ curl -H "Authorization: Bearer TOKEN" \
 curl -G -H "Authorization: Bearer TOKEN" \
   --data-urlencode "repoPath=/path/to/repo" \
   http://localhost:3000/discover
+```
+
+Example response shape:
+
+```json
+{
+  "repoPath": "/path/to/repo",
+  "repoRoot": "/path/to/repo",
+  "repoType": "swift",
+  "packageManager": "unknown",
+  "commands": {
+    "setup": {
+      "path": "/path/to/repo/scripts/harness/setup.sh",
+      "type": "script",
+      "exists": true,
+      "executable": true
+    }
+  },
+  "missingRecommended": ["launch"],
+  "hints": [
+    "Detected a Swift package manifest.",
+    "Detected shell harness scripts under scripts/harness."
+  ]
+}
 ```
 
 ### Start a job

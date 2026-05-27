@@ -30,6 +30,11 @@ Returns command allowlist, executable allowlist, and tool availability/version i
 - `xcodebuild`
 - `xcrun`
 - `bundle`
+- `make`
+- `npm`
+- `pnpm`
+- `yarn`
+- `bun`
 
 Example:
 
@@ -51,6 +56,25 @@ Response includes:
 - discovered command mappings
 - per-command metadata including resolved path, execution type, and executable bit
 - `missing` keys with actionable not-found messages and checked paths
+- `missingRecommended` for expected command keys that were not found
+- `hints` describing what repo signals were detected
+
+Recognized command keys:
+- `setup`
+- `checks`
+- `build`
+- `tests`
+- `launch`
+- `pr`
+- `logs`
+- `doctor`
+
+Discovery checks:
+- `package.json` scripts
+- `Makefile` targets
+- `scripts/harness/*.sh`
+- `Scripts/harness/*.sh`
+- common fallback scripts such as `scripts/setup.sh`, `scripts/check.sh`, and `scripts/test.sh`
 
 Example:
 
@@ -60,12 +84,42 @@ curl -G -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/discover
 ```
 
+Example response:
+
+```json
+{
+  "repoPath": "/path/to/repo",
+  "repoRoot": "/path/to/repo",
+  "repoType": "xcode",
+  "packageManager": "unknown",
+  "commands": {
+    "checks": {
+      "source": "script-file",
+      "sourceId": "Scripts/harness/check.sh",
+      "type": "script",
+      "path": "/path/to/repo/Scripts/harness/check.sh",
+      "relativePath": "Scripts/harness/check.sh",
+      "exists": true,
+      "executable": true,
+      "display": "./Scripts/harness/check.sh"
+    }
+  },
+  "missingRecommended": ["launch", "pr"],
+  "hints": [
+    "Detected Xcode project/workspace files.",
+    "Detected shell harness scripts under Scripts/harness."
+  ]
+}
+```
+
 ## 4) `POST /jobs`
 
 Starts an async job.
 
+If the discovered workflow is a repo-local shell script, the bridge runs that script directly from the repo root. It does not provide arbitrary shell execution.
+
 Body:
-- `commandKey` (required): one of allowlisted command keys
+- `commandKey` (required): one of `setup`, `checks`, `build`, `tests`, `launch`, `pr`, `logs`, `doctor`
 - `repoPath` (required)
 - `repoRef` (optional): branch/tag/commit for git repos
 - `args` (optional): array of additional args
@@ -170,4 +224,5 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
 - `Executable '<name>' is not allowed`: resolved command is outside allowed tools
 - `Repository path does not exist`: invalid `repoPath`
 - `Repository path is not a directory`: `repoPath` points at a file, not a repo folder
+- `Workflow '<key>' was found at '<path>', but it is not executable`: make the script executable and retry
 - `Unable to checkout ref`: invalid git ref in `repoRef`
