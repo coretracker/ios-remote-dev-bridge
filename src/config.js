@@ -81,7 +81,7 @@ function resolveWorkRoot() {
 function buildConfig() {
   const allowedEnvPrefixes = asList(
     process.env.ALLOWED_ENV_PREFIXES,
-    ['CI_', 'APP_', 'XCODE_', 'SIM_', 'FASTLANE_', 'BUILD_', 'TEST_']
+    ['CI_', 'APP_', 'XCODE_', 'SIM_', 'FASTLANE_', 'BUILD_', 'TEST_', 'HARNESS_']
   );
 
   const allowedEnvKeys = asList(
