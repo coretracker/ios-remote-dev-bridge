@@ -47,7 +47,8 @@ If a command key is not found, the API explains what was checked and how to fix 
 
 Each job runs in its own workspace under `WORK_ROOT/<job-id>`.
 
-- The repo is copied or checked out into `.../repo`
+- By default, commands run in the original repo folder you passed in
+- If `repoRef` is requested, the bridge makes its own checkout under `.../repo`
 - Derived data goes into `.../derived-data`
 - Optional simulator hints can be passed through `deterministic.simulatorName` and `deterministic.simulatorOS`
 

@@ -171,7 +171,8 @@ class JobManager {
       error: '',
       envRejected: [],
       jobRoot,
-      repoWorkspace: path.join(jobRoot, 'repo'),
+      repoWorkspace: repoPath,
+      workspaceClonePath: path.join(jobRoot, 'repo'),
       artifactsRoot: path.join(jobRoot, 'artifacts'),
       logFile: path.join(jobRoot, 'job.log.jsonl'),
       derivedDataDir: path.join(jobRoot, 'derived-data'),
@@ -412,35 +413,35 @@ class JobManager {
       throw error;
     }
 
-    await ensureDir(path.dirname(job.repoWorkspace));
-
     const sourceGitPath = path.join(sourcePath, '.git');
     const isGitRepo = await fileExists(sourceGitPath);
 
     if (job.repoRef) {
+      await ensureDir(path.dirname(job.workspaceClonePath));
+
       if (!isGitRepo) {
         const error = new Error(`Repository ref '${job.repoRef}' requested, but repo is not a git checkout.`);
         error.code = 'repo_ref_not_supported';
         throw error;
       }
 
-      const cloneResult = await this.runPrepCommand('git', ['clone', '--quiet', '--no-hardlinks', sourcePath, job.repoWorkspace]);
+      const cloneResult = await this.runPrepCommand('git', ['clone', '--quiet', '--no-hardlinks', sourcePath, job.workspaceClonePath]);
       if (!cloneResult.ok) {
         const error = new Error(`Failed to clone repository: ${cloneResult.error}`);
         error.code = 'repo_clone_failed';
         throw error;
       }
 
-      const checkoutResult = await this.runPrepCommand('git', ['-C', job.repoWorkspace, 'checkout', '--quiet', job.repoRef]);
+      const checkoutResult = await this.runPrepCommand('git', ['-C', job.workspaceClonePath, 'checkout', '--quiet', job.repoRef]);
       if (!checkoutResult.ok) {
         const error = new Error(`Unable to checkout ref '${job.repoRef}': ${checkoutResult.error}`);
         error.code = 'repo_ref_invalid';
         throw error;
       }
+
+      job.repoWorkspace = job.workspaceClonePath;
       return;
     }
-
-    await this.copyDirectoryTree(sourcePath, job.repoWorkspace);
   }
 
   shouldSkipCopyPath(absolutePath) {
@@ -918,7 +919,15 @@ class JobManager {
   async toArtifact(job, absolutePath, forcedId) {
     const stat = await fsPromises.stat(absolutePath);
     const artifactId = forcedId || generateId('artifact');
-    const relativePath = path.relative(job.jobRoot, absolutePath);
+    let relativePath = path.relative(job.jobRoot, absolutePath);
+
+    if (path.isAbsolute(relativePath) || relativePath.startsWith('..')) {
+      if (isSubPath(job.repoWorkspace, absolutePath) || path.resolve(job.repoWorkspace) === path.resolve(absolutePath)) {
+        relativePath = path.join('repo', path.relative(job.repoWorkspace, absolutePath));
+      } else {
+        relativePath = path.basename(absolutePath);
+      }
+    }
 
     return {
       id: artifactId,

@@ -23,6 +23,8 @@ Important behavior:
 - `POST /jobs` returns `job.id`, not a top-level `jobId`
 - early job responses can have empty `commandDisplay` and `repoRoot`
 - repo-local shell scripts are allowed only when they were discovered from approved locations
+- jobs run in the original repo folder by default
+- if `repoRef` is set, the bridge uses its own checkout for that job
 
 ## Job states
 
@@ -176,6 +178,8 @@ Behavior:
 
 - if the discovered workflow is a repo-local shell script, the service runs that script directly from the repo root
 - arbitrary shell commands are not allowed
+- by default the repo root is the original repo folder you passed in
+- if `repoRef` is provided, the job runs from the bridge checkout for that ref
 
 Body:
 
