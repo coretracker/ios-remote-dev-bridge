@@ -11,6 +11,7 @@ const {
   fileExists,
   flushLineBuffers,
   generateId,
+  isSubPath,
   nowIso,
   redactText,
   sha256,
@@ -395,10 +396,19 @@ class JobManager {
 
   async prepareWorkspace(job) {
     const sourcePath = job.repoPath;
+    let sourceStat;
 
-    if (!(await fileExists(sourcePath))) {
+    try {
+      sourceStat = await fsPromises.stat(sourcePath);
+    } catch {
       const error = new Error(`Repository path does not exist: ${sourcePath}`);
       error.code = 'repo_path_missing';
+      throw error;
+    }
+
+    if (!sourceStat.isDirectory()) {
+      const error = new Error(`Repository path is not a directory: ${sourcePath}`);
+      error.code = 'repo_path_not_directory';
       throw error;
     }
 
@@ -470,6 +480,7 @@ class JobManager {
 
     await ensureDir(path.dirname(destPath));
     await fsPromises.copyFile(sourceAbsolute, destPath);
+    await fsPromises.chmod(destPath, stat.mode);
   }
 
   runPrepCommand(command, args) {
@@ -513,8 +524,19 @@ class JobManager {
     return `Executable '${executable}' is not allowed. Allowed executables: ${this.config.allowedExecutables.join(', ')}`;
   }
 
-  enforceExecutablePolicy(resolved) {
+  enforceExecutablePolicy(resolved, discovery) {
     if (!resolved || !resolved.ok) {
+      return resolved;
+    }
+
+    if (resolved.type === 'script') {
+      if (!resolved.discovered || !resolved.path || !isSubPath(discovery.repoRoot, resolved.path)) {
+        return {
+          ok: false,
+          message: 'Discovered script is outside the repository root, which is not allowed.'
+        };
+      }
+
       return resolved;
     }
 
@@ -541,10 +563,10 @@ class JobManager {
         command: parsed.command,
         args: parsed.args,
         display: parsed.display
-      });
+      }, discovery);
     }
 
-    return this.enforceExecutablePolicy(resolveCommand(discovery, job.commandKey, job.args));
+    return this.enforceExecutablePolicy(resolveCommand(discovery, job.commandKey, job.args), discovery);
   }
 
   parseOverride(override, extraArgs) {
@@ -952,7 +974,10 @@ class JobManager {
     return {
       ok: true,
       source: resolved.source,
-      display: resolved.display
+      display: resolved.display,
+      type: resolved.type,
+      path: resolved.path,
+      executable: resolved.executable
     };
   }
 

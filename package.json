@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "check": "node --check src/*.js"
+    "check": "node --check src/*.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

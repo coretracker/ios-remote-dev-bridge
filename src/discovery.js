@@ -2,23 +2,102 @@ const fs = require('fs/promises');
 const path = require('path');
 const { fileExists } = require('./utils');
 
-const CANDIDATES = {
-  setup: ['setup', 'bootstrap', 'install', 'init', 'prepare'],
-  checks: ['check', 'checks', 'lint', 'verify', 'validate', 'typecheck'],
-  build: ['build', 'compile'],
-  tests: ['test', 'tests', 'ci:test', 'test:ci', 'unit', 'integration'],
-  launch: ['start', 'dev', 'run', 'ios', 'android', 'simulator'],
-  pr: ['pr', 'ready', 'ready:pr', 'prepush', 'pre-push', 'ci', 'all']
+const COMMAND_DEFINITIONS = {
+  setup: {
+    packageScripts: ['setup', 'bootstrap', 'install', 'init', 'prepare'],
+    makeTargets: ['setup', 'bootstrap', 'install', 'init', 'prepare'],
+    scriptPaths: [
+      'scripts/harness/setup.sh',
+      'Scripts/harness/setup.sh',
+      'scripts/setup.sh',
+      'Scripts/setup.sh',
+      'bin/setup'
+    ]
+  },
+  checks: {
+    packageScripts: ['check', 'checks', 'lint', 'verify', 'validate', 'typecheck'],
+    makeTargets: ['check', 'checks', 'lint', 'verify', 'validate', 'typecheck'],
+    scriptPaths: [
+      'scripts/harness/check.sh',
+      'Scripts/harness/check.sh',
+      'scripts/check.sh',
+      'Scripts/check.sh',
+      'scripts/lint.sh',
+      'Scripts/lint.sh'
+    ]
+  },
+  build: {
+    packageScripts: ['build', 'compile', 'check', 'checks', 'verify', 'validate'],
+    makeTargets: ['build', 'compile', 'check', 'checks', 'verify', 'validate'],
+    scriptPaths: [
+      'scripts/harness/build.sh',
+      'Scripts/harness/build.sh',
+      'scripts/build.sh',
+      'Scripts/build.sh',
+      'scripts/harness/check.sh',
+      'Scripts/harness/check.sh',
+      'scripts/check.sh',
+      'Scripts/check.sh'
+    ]
+  },
+  tests: {
+    packageScripts: ['test', 'tests', 'ci:test', 'test:ci', 'unit', 'integration'],
+    makeTargets: ['test', 'tests', 'unit', 'integration'],
+    scriptPaths: [
+      'scripts/harness/test.sh',
+      'Scripts/harness/test.sh',
+      'scripts/test.sh',
+      'Scripts/test.sh'
+    ]
+  },
+  launch: {
+    packageScripts: ['start', 'dev', 'run', 'ios', 'android', 'simulator'],
+    makeTargets: ['start', 'run', 'launch'],
+    scriptPaths: [
+      'scripts/harness/start.sh',
+      'Scripts/harness/start.sh',
+      'scripts/start.sh',
+      'Scripts/start.sh',
+      'scripts/run.sh',
+      'Scripts/run.sh',
+      'scripts/launch.sh',
+      'Scripts/launch.sh'
+    ]
+  },
+  pr: {
+    packageScripts: ['pr', 'ready', 'ready:pr', 'prepush', 'pre-push', 'ci', 'all'],
+    makeTargets: ['pr', 'ready', 'prepush', 'pre-push', 'ci', 'all'],
+    scriptPaths: [
+      'scripts/harness/pr-ready.sh',
+      'Scripts/harness/pr-ready.sh',
+      'scripts/pr-ready.sh',
+      'Scripts/pr-ready.sh'
+    ]
+  },
+  logs: {
+    packageScripts: ['logs'],
+    makeTargets: ['logs'],
+    scriptPaths: [
+      'scripts/harness/logs.sh',
+      'Scripts/harness/logs.sh',
+      'scripts/logs.sh',
+      'Scripts/logs.sh'
+    ]
+  },
+  doctor: {
+    packageScripts: ['doctor'],
+    makeTargets: ['doctor'],
+    scriptPaths: [
+      'scripts/harness/doctor.sh',
+      'Scripts/harness/doctor.sh',
+      'scripts/doctor.sh',
+      'Scripts/doctor.sh'
+    ]
+  }
 };
 
-const SCRIPT_FALLBACKS = {
-  setup: ['scripts/setup.sh', 'bin/setup'],
-  checks: ['scripts/check.sh', 'scripts/lint.sh'],
-  build: ['scripts/build.sh'],
-  tests: ['scripts/test.sh'],
-  launch: ['scripts/run.sh', 'scripts/launch.sh'],
-  pr: ['scripts/pr-ready.sh']
-};
+const RECOMMENDED_COMMAND_KEYS = ['setup', 'checks', 'build', 'tests', 'launch', 'pr'];
+const REPO_ROOT_MARKERS = ['.git', 'package.json', 'Makefile', 'Package.swift', 'Package.resolved'];
 
 async function readJson(filePath) {
   try {
@@ -29,16 +108,62 @@ async function readJson(filePath) {
   }
 }
 
+function createRepoPathError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function validateRepositoryPath(inputPath) {
+  const resolvedPath = path.resolve(inputPath);
+  let stat;
+
+  try {
+    stat = await fs.stat(resolvedPath);
+  } catch {
+    throw createRepoPathError('repo_path_missing', `Repository path does not exist: ${resolvedPath}`);
+  }
+
+  if (!stat.isDirectory()) {
+    throw createRepoPathError('repo_path_not_directory', `Repository path is not a directory: ${resolvedPath}`);
+  }
+
+  return resolvedPath;
+}
+
+async function hasXcodeProject(repoPath) {
+  try {
+    const entries = await fs.readdir(repoPath);
+    return entries.some((entry) => entry.endsWith('.xcodeproj') || entry.endsWith('.xcworkspace'));
+  } catch {
+    return false;
+  }
+}
+
+async function hasRepositoryMarker(repoPath) {
+  for (const marker of REPO_ROOT_MARKERS) {
+    if (await fileExists(path.join(repoPath, marker))) {
+      return true;
+    }
+  }
+
+  if (await hasXcodeProject(repoPath)) {
+    return true;
+  }
+
+  if (await fileExists(path.join(repoPath, 'scripts', 'harness'))) {
+    return true;
+  }
+
+  return fileExists(path.join(repoPath, 'Scripts', 'harness'));
+}
+
 async function detectRepoRoot(inputPath) {
-  const absoluteStart = path.resolve(inputPath);
+  const absoluteStart = await validateRepositoryPath(inputPath);
   let current = absoluteStart;
 
   while (true) {
-    const gitPath = path.join(current, '.git');
-    const packagePath = path.join(current, 'package.json');
-    const makefilePath = path.join(current, 'Makefile');
-
-    if (await fileExists(gitPath) || await fileExists(packagePath) || await fileExists(makefilePath)) {
+    if (await hasRepositoryMarker(current)) {
       return current;
     }
 
@@ -52,7 +177,7 @@ async function detectRepoRoot(inputPath) {
   return absoluteStart;
 }
 
-function detectPackageManager(repoRoot) {
+async function detectPackageManager(repoRoot) {
   const choices = [
     { file: 'pnpm-lock.yaml', name: 'pnpm' },
     { file: 'yarn.lock', name: 'yarn' },
@@ -61,16 +186,16 @@ function detectPackageManager(repoRoot) {
   ];
 
   for (const option of choices) {
-    const filePath = path.join(repoRoot, option.file);
-    try {
-      require('fs').accessSync(filePath);
+    if (await fileExists(path.join(repoRoot, option.file))) {
       return option.name;
-    } catch {
-      // Skip non-existing marker.
     }
   }
 
-  return 'npm';
+  if (await fileExists(path.join(repoRoot, 'package.json'))) {
+    return 'npm';
+  }
+
+  return null;
 }
 
 async function readPackageScripts(repoRoot) {
@@ -118,54 +243,66 @@ function pickCandidate(candidates, existsFn) {
   return '';
 }
 
-async function findScriptFallback(repoRoot, key) {
-  const possibilities = SCRIPT_FALLBACKS[key] || [];
-  for (const relPath of possibilities) {
-    const absolute = path.join(repoRoot, relPath);
-    if (await fileExists(absolute)) {
-      return relPath;
+async function resolveScriptCandidate(repoRoot, candidates) {
+  for (const relPath of candidates) {
+    const absolutePath = path.join(repoRoot, relPath);
+    try {
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile()) {
+        continue;
+      }
+
+      const realPath = await fs.realpath(absolutePath).catch(() => absolutePath);
+
+      return {
+        relativePath: relPath,
+        absolutePath: realPath,
+        exists: true,
+        executable: Boolean(stat.mode & 0o111)
+      };
+    } catch {
+      // Skip missing candidates.
     }
   }
-  return '';
+
+  return null;
 }
 
 function commandForPackageScript(packageManager, scriptName) {
-  if (packageManager === 'pnpm') {
-    return {
-      type: 'package-script',
-      packageManager,
-      command: 'pnpm',
-      args: ['run', scriptName],
-      display: `pnpm run ${scriptName}`
-    };
-  }
-
-  if (packageManager === 'yarn') {
-    return {
-      type: 'package-script',
-      packageManager,
-      command: 'yarn',
-      args: ['run', scriptName],
-      display: `yarn run ${scriptName}`
-    };
-  }
-
-  if (packageManager === 'bun') {
-    return {
-      type: 'package-script',
-      packageManager,
-      command: 'bun',
-      args: ['run', scriptName],
-      display: `bun run ${scriptName}`
-    };
-  }
-
+  const manager = packageManager || 'npm';
   return {
-    type: 'package-script',
-    packageManager: 'npm',
-    command: 'npm',
+    type: manager,
+    path: manager,
+    exists: true,
+    executable: true,
+    command: manager,
     args: ['run', scriptName],
-    display: `npm run ${scriptName}`
+    display: `${manager} run ${scriptName}`
+  };
+}
+
+function commandForMakeTarget(target) {
+  return {
+    type: 'make',
+    path: 'make',
+    exists: true,
+    executable: true,
+    command: 'make',
+    args: [target],
+    display: `make ${target}`
+  };
+}
+
+function commandForScriptFile(scriptInfo) {
+  return {
+    type: 'script',
+    path: scriptInfo.absolutePath,
+    relativePath: scriptInfo.relativePath,
+    exists: true,
+    executable: scriptInfo.executable,
+    command: scriptInfo.absolutePath,
+    args: [],
+    display: `./${scriptInfo.relativePath}`
   };
 }
 
@@ -180,7 +317,7 @@ function appendArgs(commandSpec, extraArgs) {
   }
 
   const finalArgs = commandSpec.args.slice();
-  if (commandSpec.type === 'package-script') {
+  if (['npm', 'pnpm', 'yarn', 'bun'].includes(commandSpec.type)) {
     finalArgs.push('--');
   }
   finalArgs.push(...safeExtra);
@@ -192,86 +329,142 @@ function appendArgs(commandSpec, extraArgs) {
   };
 }
 
+function classifyRepoType(signals) {
+  const families = [];
+  if (signals.hasNodeMetadata) {
+    families.push('node');
+  }
+  if (signals.hasSwiftPackage) {
+    families.push('swift');
+  }
+  if (signals.hasXcodeProject) {
+    families.push('xcode');
+  }
+
+  if (families.length > 1) {
+    return 'mixed';
+  }
+  if (families.length === 1) {
+    return families[0];
+  }
+  return 'unknown';
+}
+
+function buildMissingCommand(key, definition) {
+  const checkedPaths = definition.scriptPaths.slice();
+  const checkedSources = [];
+
+  if (definition.packageScripts.length) {
+    checkedSources.push(`package scripts: ${definition.packageScripts.join(', ')}`);
+  }
+  if (definition.makeTargets.length) {
+    checkedSources.push(`Make targets: ${definition.makeTargets.join(', ')}`);
+  }
+  if (checkedPaths.length) {
+    checkedSources.push(`script paths: ${checkedPaths.join(', ')}`);
+  }
+
+  return {
+    key,
+    checkedPaths,
+    message: `No workflow found for '${key}'. This command matters because the bridge can only run discovered workflows. Add one of the expected scripts or matching package/make commands, then retry. Checked ${checkedSources.join('; ')}.`
+  };
+}
+
 async function discoverRepository(inputPath) {
   const repoRoot = await detectRepoRoot(inputPath);
   const scripts = await readPackageScripts(repoRoot);
   const makeTargets = await parseMakeTargets(repoRoot);
-  const packageManager = detectPackageManager(repoRoot);
+  const packageManager = await detectPackageManager(repoRoot);
+  const hasSwiftPackage = await fileExists(path.join(repoRoot, 'Package.swift'));
+  const hasGithubActions = await fileExists(path.join(repoRoot, '.github', 'workflows'));
+  const hasFastlane = await fileExists(path.join(repoRoot, 'fastlane', 'Fastfile'));
+  const xcodeProjectPresent = await hasXcodeProject(repoRoot);
+  const hasLowerHarness = await fileExists(path.join(repoRoot, 'scripts', 'harness'));
+  const hasUpperHarness = await fileExists(path.join(repoRoot, 'Scripts', 'harness'));
+  const repoType = classifyRepoType({
+    hasNodeMetadata: Boolean(packageManager),
+    hasSwiftPackage,
+    hasXcodeProject: xcodeProjectPresent
+  });
 
   const commandMap = {};
   const missing = {};
 
-  for (const key of Object.keys(CANDIDATES)) {
-    const preferredScripts = CANDIDATES[key];
-    const script = pickCandidate(preferredScripts, (candidate) => Object.prototype.hasOwnProperty.call(scripts, candidate));
-    if (script) {
+  for (const [key, definition] of Object.entries(COMMAND_DEFINITIONS)) {
+    const packageScript = pickCandidate(
+      definition.packageScripts,
+      (candidate) => Object.prototype.hasOwnProperty.call(scripts, candidate)
+    );
+    if (packageScript) {
       commandMap[key] = {
         key,
         source: 'package-script',
-        sourceId: script,
-        ...commandForPackageScript(packageManager, script)
+        sourceId: packageScript,
+        ...commandForPackageScript(packageManager, packageScript)
       };
       continue;
     }
 
-    const target = pickCandidate(preferredScripts, (candidate) => makeTargets.includes(candidate));
-    if (target) {
+    const makeTarget = pickCandidate(definition.makeTargets, (candidate) => makeTargets.includes(candidate));
+    if (makeTarget) {
       commandMap[key] = {
         key,
         source: 'make-target',
-        sourceId: target,
-        type: 'make-target',
-        command: 'make',
-        args: [target],
-        display: `make ${target}`
+        sourceId: makeTarget,
+        ...commandForMakeTarget(makeTarget)
       };
       continue;
     }
 
-    const fallbackScript = await findScriptFallback(repoRoot, key);
-    if (fallbackScript) {
+    const scriptFile = await resolveScriptCandidate(repoRoot, definition.scriptPaths);
+    if (scriptFile) {
       commandMap[key] = {
         key,
         source: 'script-file',
-        sourceId: fallbackScript,
-        type: 'script-file',
-        command: 'sh',
-        args: [fallbackScript],
-        display: `sh ${fallbackScript}`
+        sourceId: scriptFile.relativePath,
+        discovered: true,
+        ...commandForScriptFile(scriptFile)
       };
       continue;
     }
 
-    missing[key] = {
-      key,
-      message: `No workflow found for '${key}'. Checked package scripts, Makefile targets, and common script files.`
-    };
+    missing[key] = buildMissingCommand(key, definition);
   }
 
-  const hasFastlane = await fileExists(path.join(repoRoot, 'fastlane', 'Fastfile'));
-  const hasGithubActions = await fileExists(path.join(repoRoot, '.github', 'workflows'));
-  const hasXcodeProject = (await fs.readdir(repoRoot).catch(() => []))
-    .some((entry) => entry.endsWith('.xcodeproj') || entry.endsWith('.xcworkspace'));
-
   const hints = [];
+  if (hasSwiftPackage) {
+    hints.push('Detected a Swift package manifest.');
+  }
+  if (xcodeProjectPresent) {
+    hints.push('Detected Xcode project/workspace files.');
+  }
   if (hasFastlane) {
     hints.push('Detected fastlane configuration.');
   }
   if (hasGithubActions) {
     hints.push('Detected GitHub Actions workflows.');
   }
-  if (hasXcodeProject) {
-    hints.push('Detected Xcode project/workspace files.');
+  if (hasLowerHarness) {
+    hints.push('Detected shell harness scripts under scripts/harness.');
+  }
+  if (hasUpperHarness) {
+    hints.push('Detected shell harness scripts under Scripts/harness.');
+  }
+  if (!Object.keys(commandMap).length) {
+    hints.push('No recognized repo workflows were discovered.');
   }
 
   return {
     inputPath: path.resolve(inputPath),
     repoRoot,
-    packageManager,
+    repoType,
+    packageManager: packageManager || 'unknown',
     scripts,
     makeTargets,
     commands: commandMap,
     missing,
+    missingRecommended: RECOMMENDED_COMMAND_KEYS.filter((key) => !commandMap[key]),
     hints
   };
 }
@@ -287,12 +480,25 @@ function resolveCommand(discovery, commandKey, args) {
     };
   }
 
+  if (definition.type === 'script' && !definition.executable) {
+    return {
+      ok: false,
+      message: `Workflow '${commandKey}' was found at '${definition.relativePath}', but it is not executable. This matters because the bridge runs script workflows directly. Fix it with 'chmod +x ${definition.relativePath}' and retry.`
+    };
+  }
+
   const withArgs = appendArgs(definition, args);
   return {
     ok: true,
     commandKey,
     source: definition.source,
     sourceId: definition.sourceId,
+    type: definition.type,
+    path: definition.path,
+    relativePath: definition.relativePath || '',
+    exists: definition.exists,
+    executable: definition.executable,
+    discovered: Boolean(definition.discovered),
     command: withArgs.command,
     args: withArgs.args,
     display: withArgs.display

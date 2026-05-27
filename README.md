@@ -4,8 +4,8 @@ A Node.js HTTP service that lets a Linux-based coding agent trigger and monitor 
 
 The service:
 - discovers available workflows in any target repo at runtime
-- runs only allowlisted command keys (`setup`, `checks`, `build`, `tests`, `launch`, `pr` by default)
-- executes only these tools: `swift`, `xcodebuild`, `xcrun`, `bundle`
+- runs only allowlisted command keys (`setup`, `checks`, `build`, `tests`, `launch`, `pr`, `logs`, `doctor` by default)
+- executes only allowlisted tools directly, plus discovered repo-local scripts
 - executes jobs asynchronously with queueing, cancellation, timeout, and per-job isolated workspace
 - streams logs and exposes artifacts through HTTP
 
@@ -14,6 +14,7 @@ The service:
 You provide a `repoPath` when creating a job. The service then discovers commands from:
 - `package.json` scripts
 - `Makefile` targets
+- shell harness scripts such as `scripts/harness/*.sh` and `Scripts/harness/*.sh`
 - common script files (for example `scripts/test.sh`)
 
 If a command key is not discoverable, the API returns a clear `not found` error.
@@ -57,7 +58,8 @@ Service default: `http://localhost:3000`
 
 - Token auth (`Authorization: Bearer <API_TOKEN>`)
 - Command key allowlist only (no arbitrary shell endpoint)
-- Executable allowlist only: `swift`, `xcodebuild`, `xcrun`, `bundle`
+- Executable allowlist only for non-script commands: `swift`, `xcodebuild`, `xcrun`, `bundle`, `make`, `npm`, `pnpm`, `yarn`, `bun`
+- Script execution is limited to discovered repo-local workflow files
 - Environment variable filtering (`ALLOWED_ENV_*`)
 - Secret redaction in logs
 - In-memory rate limiting

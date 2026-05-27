@@ -136,6 +136,22 @@ function validateJobInput(body) {
   };
 }
 
+function statusForError(error) {
+  if (!error || !error.code) {
+    return 400;
+  }
+
+  if (error.code === 'repo_path_missing') {
+    return 404;
+  }
+
+  if (error.code === 'repo_path_not_directory') {
+    return 400;
+  }
+
+  return 400;
+}
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -173,13 +189,15 @@ app.get('/discover', async (req, res) => {
     return res.json({
       repoPath: discovery.inputPath,
       repoRoot: discovery.repoRoot,
+      repoType: discovery.repoType,
       packageManager: discovery.packageManager,
       commands: discovery.commands,
       missing: discovery.missing,
+      missingRecommended: discovery.missingRecommended,
       hints: discovery.hints
     });
   } catch (error) {
-    return res.status(400).json({
+    return res.status(statusForError(error)).json({
       error: `Discovery failed: ${error.message}`
     });
   }
@@ -220,7 +238,7 @@ app.post('/jobs', async (req, res) => {
       return res.status(409).json({ error: error.message });
     }
 
-    return res.status(400).json({ error: error.message });
+    return res.status(statusForError(error)).json({ error: error.message });
   }
 });
 

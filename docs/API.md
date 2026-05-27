@@ -46,9 +46,11 @@ Query params:
 
 Response includes:
 - repo root
+- repo type (`swift`, `xcode`, `mixed`, `node`, or `unknown`)
 - detected package manager
 - discovered command mappings
-- `missing` keys with actionable not-found messages
+- per-command metadata including resolved path, execution type, and executable bit
+- `missing` keys with actionable not-found messages and checked paths
 
 Example:
 
@@ -167,4 +169,5 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
 - `No workflow found for '<key>'`: repo discovery could not map that command
 - `Executable '<name>' is not allowed`: resolved command is outside allowed tools
 - `Repository path does not exist`: invalid `repoPath`
+- `Repository path is not a directory`: `repoPath` points at a file, not a repo folder
 - `Unable to checkout ref`: invalid git ref in `repoRef`
