@@ -147,9 +147,28 @@ curl -X POST http://localhost:3000/jobs \
   }'
 ```
 
+Response shape:
+
+```json
+{
+  "reused": false,
+  "job": {
+    "id": "job_123",
+    "status": "queued",
+    "commandKey": "build"
+  }
+}
+```
+
+Notes:
+- The response returns `job.id`. There is no top-level `jobId`.
+- Right after job creation, some fields inside `job` may still be empty, especially `commandDisplay` and `repoRoot`. They are filled in after the job starts discovery and execution.
+
 ## 5) `GET /jobs/:id`
 
 Returns current job status, exit code, timing, and error details (if failed).
+
+Early responses for queued or just-started jobs can still show empty values for `commandDisplay` and `repoRoot`. That is expected until setup finishes.
 
 Example:
 

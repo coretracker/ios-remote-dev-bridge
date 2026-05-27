@@ -150,6 +150,20 @@ curl -X POST http://localhost:3000/jobs \
   }'
 ```
 
+Response shape:
+
+```json
+{
+  "reused": false,
+  "job": {
+    "id": "job_123",
+    "status": "queued"
+  }
+}
+```
+
+`POST /jobs` returns `job.id`, not a top-level `jobId`. Right after creation, fields like `commandDisplay` and `repoRoot` may still be empty until the job starts running.
+
 ### Check job status
 
 ```bash
