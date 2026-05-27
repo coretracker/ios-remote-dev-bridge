@@ -1,85 +1,98 @@
-# Remote Dev Bridge Service (Repo-Agnostic)
+# Remote Dev Bridge Service
 
-A Node.js HTTP service that lets a Linux-based coding agent trigger and monitor workflows on a remote machine (including macOS) without local Xcode tooling.
+HTTP service for running repo workflows on a remote machine, including macOS machines used for Swift or Xcode work.
 
-The service:
-- discovers available workflows in any target repo at runtime
-- runs only allowlisted command keys (`setup`, `checks`, `build`, `tests`, `launch`, `pr`, `logs`, `doctor` by default)
-- executes only allowlisted tools directly, plus discovered repo-local scripts
-- executes jobs asynchronously with queueing, cancellation, timeout, and per-job isolated workspace
-- streams logs and exposes artifacts through HTTP
+## What it does
 
-## What makes it repo-agnostic
+- Finds common repo workflows at runtime.
+- Lets agents run only approved command keys such as `setup`, `checks`, `build`, `tests`, `launch`, and `pr`.
+- Supports package scripts, Make targets, and repo-local shell scripts.
+- Runs jobs in isolated work folders.
+- Exposes job status, logs, artifacts, and cancellation over HTTP.
 
-You provide a `repoPath` when creating a job. The service then discovers commands from:
+## What it can discover
+
+The service checks a repo for:
+
 - `package.json` scripts
 - `Makefile` targets
-- shell harness scripts such as `scripts/harness/*.sh` and `Scripts/harness/*.sh`
-- common script files (for example `scripts/test.sh`)
+- `scripts/harness/*.sh`
+- `Scripts/harness/*.sh`
+- fallback scripts such as `scripts/setup.sh`, `scripts/check.sh`, `scripts/test.sh`, `scripts/start.sh`, and `scripts/pr-ready.sh`
 
-If a command key is not discoverable, the API returns a clear `not found` error.
+Recognized command keys:
+
+- `setup`
+- `checks`
+- `build`
+- `tests`
+- `launch`
+- `pr`
+- `logs`
+- `doctor`
+
+If a command key is not found, the API explains what was checked and how to fix it.
+
+## Security model
+
+- Token auth with `Authorization: Bearer <API_TOKEN>`
+- No arbitrary shell endpoint
+- Non-script commands are limited to approved tools
+- Script execution is limited to discovered repo-local workflow files
+- Environment variables are filtered
+- Sensitive values are hidden in logs
+- Basic rate limiting is enabled
+
+## How jobs run
+
+Each job runs in its own workspace under `WORK_ROOT/<job-id>`.
+
+- The repo is copied or checked out into `.../repo`
+- Derived data goes into `.../derived-data`
+- Optional simulator hints can be passed through `deterministic.simulatorName` and `deterministic.simulatorOS`
 
 ## Quick start
 
-## 1) Install
+### 1. Install
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-## 2) Configure
+### 2. Configure
 
-Set a real token in `.env`:
+Set a real API token in `.env`:
 
 ```bash
 API_TOKEN=replace-with-strong-token
 ```
 
-## 3) Run
+### 3. Run
 
 ```bash
 npm start
 ```
 
-Service default: `http://localhost:3000`
+Default address: `http://localhost:3000`
 
-## Common flow
+## Recommended agent flow
 
-1. Check service health.
-2. Discover repo workflows (`/discover`).
-3. Start job (`POST /jobs`).
-4. Track status (`GET /jobs/:id`).
-5. Read or stream logs (`GET /jobs/:id/logs`).
-6. Fetch artifacts (`GET /jobs/:id/artifacts`).
-7. Cancel if needed (`POST /jobs/:id/cancel`).
+1. Call `GET /health`
+2. Call `GET /discover?repoPath=...`
+3. Choose a discovered command key
+4. Call `POST /jobs`
+5. Poll `GET /jobs/:id`
+6. Read `GET /jobs/:id/logs`
+7. Fetch `GET /jobs/:id/artifacts` if needed
+8. Call `POST /jobs/:id/cancel` if needed
 
-## Security model
-
-- Token auth (`Authorization: Bearer <API_TOKEN>`)
-- Command key allowlist only (no arbitrary shell endpoint)
-- Executable allowlist only for non-script commands: `swift`, `xcodebuild`, `xcrun`, `bundle`, `make`, `npm`, `pnpm`, `yarn`, `bun`
-- Script execution is limited to discovered repo-local workflow files
-- Environment variable filtering (`ALLOWED_ENV_*`)
-- Secret redaction in logs
-- In-memory rate limiting
-
-## Deterministic execution behavior
-
-Each job runs in an isolated workspace under `WORK_ROOT/<job-id>` with:
-- fixed repo checkout/copy path (`.../repo`)
-- fixed derived data path (`.../derived-data`)
-- explicit simulator env hints when provided (`deterministic.simulatorName`, `deterministic.simulatorOS`)
-
-## API reference
-
-See [API.md](/task-workspaces/z4fi8BH5uiWftfztCuA-Q/docs/API.md).
-
-## Example requests
+## Examples
 
 Replace:
+
 - `TOKEN` with your API token
-- `/path/to/repo` with the target repository path on the remote machine
+- `/path/to/repo` with the repo path on the remote machine
 
 ### Health
 
@@ -87,14 +100,14 @@ Replace:
 curl http://localhost:3000/health
 ```
 
-### Capabilities (tool availability)
+### Capabilities
 
 ```bash
 curl -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/capabilities
 ```
 
-### Discovery
+### Discover workflows
 
 ```bash
 curl -G -H "Authorization: Bearer TOKEN" \
@@ -102,7 +115,7 @@ curl -G -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/discover
 ```
 
-Example response shape:
+Example response:
 
 ```json
 {
@@ -150,7 +163,7 @@ curl -X POST http://localhost:3000/jobs \
   }'
 ```
 
-Response shape:
+Example response:
 
 ```json
 {
@@ -162,7 +175,10 @@ Response shape:
 }
 ```
 
-`POST /jobs` returns `job.id`, not a top-level `jobId`. Right after creation, fields like `commandDisplay` and `repoRoot` may still be empty until the job starts running.
+Notes:
+
+- `POST /jobs` returns `job.id`, not a top-level `jobId`
+- early responses may still show empty `commandDisplay` and `repoRoot`
 
 ### Check job status
 
@@ -171,14 +187,14 @@ curl -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/jobs/<job-id>
 ```
 
-### Read logs (paginated)
+### Read logs
 
 ```bash
 curl -H "Authorization: Bearer TOKEN" \
   "http://localhost:3000/jobs/<job-id>/logs?offset=0&limit=200"
 ```
 
-### Stream logs (SSE)
+### Stream logs
 
 ```bash
 curl -N -H "Authorization: Bearer TOKEN" \
@@ -200,7 +216,7 @@ curl -L -H "Authorization: Bearer TOKEN" \
   -o artifact.out
 ```
 
-### Cancel a running or queued job
+### Cancel a job
 
 ```bash
 curl -X POST -H "Authorization: Bearer TOKEN" \
@@ -209,6 +225,10 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
 
 ## Notes
 
-- `/health` is open by default for liveness checks.
-- Completed job workspaces are removed after `JOB_RETENTION_MS`.
-- Artifacts become unavailable after cleanup.
+- `GET /health` is open by default
+- completed job workspaces are removed after `JOB_RETENTION_MS`
+- artifacts are no longer available after cleanup
+
+## Full API reference
+
+See [API.md](/task-workspaces/z4fi8BH5uiWftfztCuA-Q/docs/API.md).

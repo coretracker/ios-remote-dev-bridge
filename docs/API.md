@@ -2,20 +2,63 @@
 
 Base URL: `http://<host>:<port>`
 
-Auth: `Authorization: Bearer <API_TOKEN>` for all endpoints except `GET /health`.
+Auth: `Authorization: Bearer <API_TOKEN>` for every endpoint except `GET /health`.
 
-## Status values
+## For agents
 
-Jobs return one of:
+Recommended order:
+
+1. `GET /health`
+2. `GET /discover?repoPath=...`
+3. `POST /jobs`
+4. `GET /jobs/:id`
+5. `GET /jobs/:id/logs`
+6. `GET /jobs/:id/artifacts`
+7. `POST /jobs/:id/cancel` if needed
+
+Important behavior:
+
+- Always discover before starting a job
+- Only discovered command keys can run
+- `POST /jobs` returns `job.id`, not a top-level `jobId`
+- early job responses can have empty `commandDisplay` and `repoRoot`
+- repo-local shell scripts are allowed only when they were discovered from approved locations
+
+## Job states
+
 - `queued`
 - `running`
 - `passed`
 - `failed`
 - `canceled`
 
-## 1) `GET /health`
+## Command keys
 
-Basic service health and metrics.
+Supported command keys:
+
+- `setup`
+- `checks`
+- `build`
+- `tests`
+- `launch`
+- `pr`
+- `logs`
+- `doctor`
+
+Discovery sources:
+
+- `package.json` scripts
+- `Makefile` targets
+- `scripts/harness/*.sh`
+- `Scripts/harness/*.sh`
+- fallback scripts such as `scripts/setup.sh`, `scripts/check.sh`, `scripts/test.sh`, `scripts/start.sh`, and `scripts/pr-ready.sh`
+
+## 1. `GET /health`
+
+Purpose:
+
+- quick service check
+- basic uptime and queue metrics
 
 Example:
 
@@ -23,9 +66,16 @@ Example:
 curl http://localhost:3000/health
 ```
 
-## 2) `GET /capabilities`
+## 2. `GET /capabilities`
 
-Returns command allowlist, executable allowlist, and tool availability/version info for:
+Purpose:
+
+- show allowed command keys
+- show allowed non-script tools
+- show tool availability on the machine
+
+Allowed non-script tools currently include:
+
 - `swift`
 - `xcodebuild`
 - `xcrun`
@@ -39,42 +89,43 @@ Returns command allowlist, executable allowlist, and tool availability/version i
 Example:
 
 ```bash
-curl -H "Authorization: Bearer TOKEN" http://localhost:3000/capabilities
+curl -H "Authorization: Bearer TOKEN" \
+  http://localhost:3000/capabilities
 ```
 
-## 3) `GET /discover?repoPath=...`
+## 3. `GET /discover?repoPath=...`
 
-Discovers workflows in a repository and maps canonical command keys.
+Purpose:
+
+- validate the repo path
+- classify the repo
+- find runnable workflows
 
 Query params:
-- `repoPath` (required): path to target repo on server machine
+
+- `repoPath` required, absolute or server-local path to the repo
 
 Response includes:
-- repo root
-- repo type (`swift`, `xcode`, `mixed`, `node`, or `unknown`)
-- detected package manager
-- discovered command mappings
-- per-command metadata including resolved path, execution type, and executable bit
-- `missing` keys with actionable not-found messages and checked paths
-- `missingRecommended` for expected command keys that were not found
-- `hints` describing what repo signals were detected
 
-Recognized command keys:
-- `setup`
-- `checks`
-- `build`
-- `tests`
-- `launch`
-- `pr`
-- `logs`
-- `doctor`
+- `repoPath`
+- `repoRoot`
+- `repoType`
+- `packageManager`
+- `commands`
+- `missing`
+- `missingRecommended`
+- `hints`
 
-Discovery checks:
-- `package.json` scripts
-- `Makefile` targets
-- `scripts/harness/*.sh`
-- `Scripts/harness/*.sh`
-- common fallback scripts such as `scripts/setup.sh`, `scripts/check.sh`, and `scripts/test.sh`
+Per-command fields may include:
+
+- `source`
+- `sourceId`
+- `type`
+- `path`
+- `relativePath`
+- `exists`
+- `executable`
+- `display`
 
 Example:
 
@@ -112,23 +163,31 @@ Example response:
 }
 ```
 
-## 4) `POST /jobs`
+Use `commands` to choose what to run next. If a key is missing, check `missing` for the paths and names that were checked.
 
-Starts an async job.
+## 4. `POST /jobs`
 
-If the discovered workflow is a repo-local shell script, the bridge runs that script directly from the repo root. It does not provide arbitrary shell execution.
+Purpose:
+
+- start an async job for a discovered command key
+
+Behavior:
+
+- if the discovered workflow is a repo-local shell script, the service runs that script directly from the repo root
+- arbitrary shell commands are not allowed
 
 Body:
-- `commandKey` (required): one of `setup`, `checks`, `build`, `tests`, `launch`, `pr`, `logs`, `doctor`
-- `repoPath` (required)
-- `repoRef` (optional): branch/tag/commit for git repos
-- `args` (optional): array of additional args
-- `env` (optional): object, filtered by allow rules
-- `timeoutMs` (optional): clamped by `MAX_TIMEOUT_MS`
-- `idempotencyKey` (optional): deduplicates identical requests
-- `deterministic` (optional object)
-- `deterministic.simulatorName` (optional)
-- `deterministic.simulatorOS` (optional)
+
+- `commandKey` required
+- `repoPath` required
+- `repoRef` optional, for git repos
+- `args` optional array
+- `env` optional object
+- `timeoutMs` optional
+- `idempotencyKey` optional
+- `deterministic` optional object
+- `deterministic.simulatorName` optional
+- `deterministic.simulatorOS` optional
 
 Example:
 
@@ -147,7 +206,7 @@ curl -X POST http://localhost:3000/jobs \
   }'
 ```
 
-Response shape:
+Example response:
 
 ```json
 {
@@ -155,36 +214,47 @@ Response shape:
   "job": {
     "id": "job_123",
     "status": "queued",
-    "commandKey": "build"
+    "commandKey": "build",
+    "commandDisplay": "",
+    "repoRoot": ""
   }
 }
 ```
 
 Notes:
-- The response returns `job.id`. There is no top-level `jobId`.
-- Right after job creation, some fields inside `job` may still be empty, especially `commandDisplay` and `repoRoot`. They are filled in after the job starts discovery and execution.
 
-## 5) `GET /jobs/:id`
+- use `job.id` for later requests
+- `commandDisplay` and `repoRoot` can be empty at first
 
-Returns current job status, exit code, timing, and error details (if failed).
+## 5. `GET /jobs/:id`
 
-Early responses for queued or just-started jobs can still show empty values for `commandDisplay` and `repoRoot`. That is expected until setup finishes.
+Purpose:
+
+- read current job state
+- inspect timing, exit code, and errors
+
+Early responses for queued or just-started jobs may still show empty `commandDisplay` and `repoRoot`.
 
 Example:
 
 ```bash
-curl -H "Authorization: Bearer TOKEN" http://localhost:3000/jobs/<job-id>
+curl -H "Authorization: Bearer TOKEN" \
+  http://localhost:3000/jobs/<job-id>
 ```
 
-## 6) `GET /jobs/:id/logs`
+## 6. `GET /jobs/:id/logs`
 
-Returns logs.
+Purpose:
+
+- read captured stdout and stderr
+- follow logs live
 
 Query params:
-- `offset` (optional, default `0`)
-- `limit` (optional, default `200`)
-- `format` (optional: `json` or `text`, default `json`)
-- `follow` (optional: `true/false`) for live stream (SSE)
+
+- `offset` optional, default `0`
+- `limit` optional, default `200`
+- `format` optional, `json` or `text`, default `json`
+- `follow` optional, `true` for live stream
 
 Examples:
 
@@ -198,9 +268,11 @@ curl -N -H "Authorization: Bearer TOKEN" \
   "http://localhost:3000/jobs/<job-id>/logs?follow=true"
 ```
 
-## 7) `GET /jobs/:id/artifacts`
+## 7. `GET /jobs/:id/artifacts`
 
-Lists artifacts for a job.
+Purpose:
+
+- list output files and folders collected from the job
 
 Example:
 
@@ -209,9 +281,14 @@ curl -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/jobs/<job-id>/artifacts
 ```
 
-## 8) `GET /jobs/:id/artifacts/:artifactId`
+## 8. `GET /jobs/:id/artifacts/:artifactId`
 
-Downloads a single artifact.
+Purpose:
+
+- download one artifact
+
+Behavior:
+
 - files are downloaded directly
 - directory artifacts are streamed as `.tar.gz`
 
@@ -223,9 +300,11 @@ curl -L -H "Authorization: Bearer TOKEN" \
   -o artifact.out
 ```
 
-## 9) `POST /jobs/:id/cancel`
+## 9. `POST /jobs/:id/cancel`
 
-Cancels queued or running jobs.
+Purpose:
+
+- stop a queued or running job
 
 Example:
 
@@ -234,14 +313,21 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/jobs/<job-id>/cancel
 ```
 
-## Common error messages
+## Common errors
 
-- `401 Unauthorized`: invalid/missing token
-- `429 Rate limit exceeded`: too many requests in current window
-- `Command key '<key>' is not in allowlist`: blocked by allowlist
-- `No workflow found for '<key>'`: repo discovery could not map that command
-- `Executable '<name>' is not allowed`: resolved command is outside allowed tools
-- `Repository path does not exist`: invalid `repoPath`
-- `Repository path is not a directory`: `repoPath` points at a file, not a repo folder
+- `401 Unauthorized`: token is missing or wrong
+- `429 Rate limit exceeded`: too many requests in the current window
+- `Command key '<key>' is not in allowlist`: the key is blocked
+- `No workflow found for '<key>'`: discovery did not find a runnable workflow for that key
+- `Executable '<name>' is not allowed`: a non-script command resolved to a blocked tool
+- `Repository path does not exist`: `repoPath` is wrong
+- `Repository path is not a directory`: `repoPath` points to a file
 - `Workflow '<key>' was found at '<path>', but it is not executable`: make the script executable and retry
-- `Unable to checkout ref`: invalid git ref in `repoRef`
+- `Unable to checkout ref`: `repoRef` is not valid for that repo
+
+## Practical notes
+
+- `GET /health` is open by default
+- job workspaces are removed after `JOB_RETENTION_MS`
+- artifacts disappear after cleanup
+- if a repo path is wrong, discovery fails early instead of guessing
