@@ -5,6 +5,7 @@ A Node.js HTTP service that lets a Linux-based coding agent trigger and monitor 
 The service:
 - discovers available workflows in any target repo at runtime
 - runs only allowlisted command keys (`setup`, `checks`, `build`, `tests`, `launch`, `pr` by default)
+- executes only these tools: `swift`, `xcodebuild`, `xcrun`, `bundle`
 - executes jobs asynchronously with queueing, cancellation, timeout, and per-job isolated workspace
 - streams logs and exposes artifacts through HTTP
 
@@ -37,7 +38,6 @@ API_TOKEN=replace-with-strong-token
 ## 3) Run
 
 ```bash
-set -a; . ./.env; set +a
 npm start
 ```
 
@@ -57,6 +57,7 @@ Service default: `http://localhost:3000`
 
 - Token auth (`Authorization: Bearer <API_TOKEN>`)
 - Command key allowlist only (no arbitrary shell endpoint)
+- Executable allowlist only: `swift`, `xcodebuild`, `xcrun`, `bundle`
 - Environment variable filtering (`ALLOWED_ENV_*`)
 - Secret redaction in logs
 - In-memory rate limiting

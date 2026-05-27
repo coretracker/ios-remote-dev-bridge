@@ -25,7 +25,11 @@ curl http://localhost:3000/health
 
 ## 2) `GET /capabilities`
 
-Returns command allowlist and tool availability/version info (for example `xcodebuild`, `simctl`, `swift`).
+Returns command allowlist, executable allowlist, and tool availability/version info for:
+- `swift`
+- `xcodebuild`
+- `xcrun`
+- `bundle`
 
 Example:
 
@@ -161,5 +165,6 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
 - `429 Rate limit exceeded`: too many requests in current window
 - `Command key '<key>' is not in allowlist`: blocked by allowlist
 - `No workflow found for '<key>'`: repo discovery could not map that command
+- `Executable '<name>' is not allowed`: resolved command is outside allowed tools
 - `Repository path does not exist`: invalid `repoPath`
 - `Unable to checkout ref`: invalid git ref in `repoRef`

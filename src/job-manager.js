@@ -503,6 +503,31 @@ class JobManager {
     });
   }
 
+  isExecutableAllowed(command) {
+    const executable = path.basename(String(command || '').trim());
+    return this.config.allowedExecutables.includes(executable);
+  }
+
+  executablePolicyError(command) {
+    const executable = path.basename(String(command || '').trim()) || String(command || '').trim();
+    return `Executable '${executable}' is not allowed. Allowed executables: ${this.config.allowedExecutables.join(', ')}`;
+  }
+
+  enforceExecutablePolicy(resolved) {
+    if (!resolved || !resolved.ok) {
+      return resolved;
+    }
+
+    if (!this.isExecutableAllowed(resolved.command)) {
+      return {
+        ok: false,
+        message: this.executablePolicyError(resolved.command)
+      };
+    }
+
+    return resolved;
+  }
+
   resolveCommand(job, discovery) {
     const override = this.config.commandOverrides[job.commandKey];
     if (override) {
@@ -511,15 +536,15 @@ class JobManager {
         return parsed;
       }
 
-      return {
+      return this.enforceExecutablePolicy({
         ok: true,
         command: parsed.command,
         args: parsed.args,
         display: parsed.display
-      };
+      });
     }
 
-    return resolveCommand(discovery, job.commandKey, job.args);
+    return this.enforceExecutablePolicy(resolveCommand(discovery, job.commandKey, job.args));
   }
 
   parseOverride(override, extraArgs) {
@@ -913,16 +938,8 @@ class JobManager {
   }
 
   async preflightCommand(commandKey, repoPath) {
-    if (this.config.commandOverrides[commandKey]) {
-      return {
-        ok: true,
-        source: 'override',
-        display: `${commandKey} (override)`
-      };
-    }
-
     const discovery = await this.discover(repoPath);
-    const resolved = resolveCommand(discovery, commandKey, []);
+    const resolved = this.resolveCommand({ commandKey, args: [] }, discovery);
 
     if (!resolved.ok) {
       return {

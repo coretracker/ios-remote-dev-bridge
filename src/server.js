@@ -155,6 +155,7 @@ app.get('/capabilities', async (req, res) => {
   const capabilities = await getCapabilities();
   res.json({
     allowlist: config.allowedCommands,
+    allowedExecutables: config.allowedExecutables,
     capabilities
   });
 });

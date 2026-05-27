@@ -1,6 +1,8 @@
 const path = require('path');
+require('dotenv').config();
 
 const CANONICAL_COMMAND_KEYS = ['setup', 'checks', 'build', 'tests', 'launch', 'pr'];
+const ALLOWED_EXECUTABLES = ['swift', 'xcodebuild', 'xcrun', 'bundle'];
 
 function asInt(value, fallback, min, max) {
   if (value === undefined || value === null || value === '') {
@@ -102,6 +104,7 @@ function buildConfig() {
     jobRetentionMs: asInt(process.env.JOB_RETENTION_MS, 24 * 60 * 60 * 1000, 60_000, 7 * 24 * 60 * 60 * 1000),
     workRoot: resolveWorkRoot(),
     allowedCommands: Array.from(new Set(CANONICAL_COMMAND_KEYS.concat(allowlistExtra))),
+    allowedExecutables: ALLOWED_EXECUTABLES.slice(),
     commandOverrides: configuredOverrides,
     allowPatterns: compileAllowPatterns(allowedEnvPrefixes, allowedEnvKeys),
     redactionKeywords: asList(process.env.REDACT_ENV_KEYWORDS, ['TOKEN', 'SECRET', 'PASSWORD', 'KEY', 'AUTH', 'CREDENTIAL']),
@@ -114,6 +117,7 @@ function buildConfig() {
 }
 
 module.exports = {
+  ALLOWED_EXECUTABLES,
   CANONICAL_COMMAND_KEYS,
   config: buildConfig()
 };
