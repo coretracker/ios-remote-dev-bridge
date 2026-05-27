@@ -52,6 +52,10 @@ function asList(value, fallback) {
     .filter(Boolean);
 }
 
+function mergeUnique(base, extra) {
+  return Array.from(new Set([...(base || []), ...(extra || [])]));
+}
+
 function asJson(value, fallback) {
   if (!value) {
     return fallback;
@@ -79,14 +83,17 @@ function resolveWorkRoot() {
 }
 
 function buildConfig() {
-  const allowedEnvPrefixes = asList(
-    process.env.ALLOWED_ENV_PREFIXES,
-    ['CI_', 'APP_', 'XCODE_', 'SIM_', 'FASTLANE_', 'BUILD_', 'TEST_', 'HARNESS_']
+  const defaultAllowedEnvPrefixes = ['CI_', 'APP_', 'XCODE_', 'SIM_', 'FASTLANE_', 'BUILD_', 'TEST_', 'HARNESS_'];
+  const defaultAllowedEnvKeys = ['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'DEVELOPER_DIR', 'SDKROOT', 'TMPDIR', 'HARNESS_FORMAT_MODE'];
+
+  const allowedEnvPrefixes = mergeUnique(
+    defaultAllowedEnvPrefixes,
+    asList(process.env.ALLOWED_ENV_PREFIXES, [])
   );
 
-  const allowedEnvKeys = asList(
-    process.env.ALLOWED_ENV_KEYS,
-    ['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'DEVELOPER_DIR', 'SDKROOT', 'TMPDIR', 'HARNESS_FORMAT_MODE']
+  const allowedEnvKeys = mergeUnique(
+    defaultAllowedEnvKeys,
+    asList(process.env.ALLOWED_ENV_KEYS, [])
   );
 
   const allowlistExtra = asList(process.env.ALLOWED_COMMAND_KEYS, []);
@@ -119,5 +126,6 @@ function buildConfig() {
 module.exports = {
   ALLOWED_EXECUTABLES,
   CANONICAL_COMMAND_KEYS,
+  buildConfig,
   config: buildConfig()
 };
