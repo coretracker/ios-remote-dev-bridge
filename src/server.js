@@ -96,10 +96,11 @@ function validateJobInput(body) {
     return { ok: false, message: "Missing required field 'commandKey'." };
   }
 
-  if (!config.allowedCommands.includes(commandKey)) {
+  const commandKeyPattern = /^[A-Za-z0-9_.:-]+$/;
+  if (!config.allowedCommands.includes(commandKey) && !commandKeyPattern.test(commandKey)) {
     return {
       ok: false,
-      message: `Command key '${commandKey}' is not in allowlist. Allowed: ${config.allowedCommands.join(', ')}`
+      message: `Command key '${commandKey}' is invalid. Use letters, numbers, '.', '_', ':', or '-'.`
     };
   }
 

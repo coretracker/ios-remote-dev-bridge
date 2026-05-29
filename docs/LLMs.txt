@@ -51,9 +51,7 @@ Discovery sources:
 
 - `package.json` scripts
 - `Makefile` targets
-- `scripts/harness/*.sh`
-- `Scripts/harness/*.sh`
-- fallback scripts such as `scripts/setup.sh`, `scripts/check.sh`, `scripts/test.sh`, `scripts/start.sh`, and `scripts/pr-ready.sh`
+- all `*.sh` files under `Scripts/` or `scripts/` (recursive)
 
 ## 1. `GET /health`
 
@@ -149,19 +147,19 @@ Example response:
   "commands": {
     "checks": {
       "source": "script-file",
-      "sourceId": "Scripts/harness/check.sh",
+      "sourceId": "Scripts/check.sh",
       "type": "script",
-      "path": "/path/to/repo/Scripts/harness/check.sh",
-      "relativePath": "Scripts/harness/check.sh",
+      "path": "/path/to/repo/Scripts/check.sh",
+      "relativePath": "Scripts/check.sh",
       "exists": true,
       "executable": true,
-      "display": "./Scripts/harness/check.sh"
+      "display": "./Scripts/check.sh"
     }
   },
   "missingRecommended": ["launch", "pr"],
   "hints": [
     "Detected Xcode project/workspace files.",
-    "Detected shell harness scripts under Scripts/harness."
+    "Detected shell scripts under Scripts/."
   ]
 }
 ```

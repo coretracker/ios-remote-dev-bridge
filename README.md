@@ -16,9 +16,7 @@ The service checks a repo for:
 
 - `package.json` scripts
 - `Makefile` targets
-- `scripts/harness/*.sh`
-- `Scripts/harness/*.sh`
-- fallback scripts such as `scripts/setup.sh`, `scripts/check.sh`, `scripts/test.sh`, `scripts/start.sh`, and `scripts/pr-ready.sh`
+- all `*.sh` files under `Scripts/` or `scripts/` (recursive)
 
 Recognized command keys:
 
@@ -126,7 +124,7 @@ Example response:
   "packageManager": "unknown",
   "commands": {
     "setup": {
-      "path": "/path/to/repo/scripts/harness/setup.sh",
+      "path": "/path/to/repo/Scripts/setup.sh",
       "type": "script",
       "exists": true,
       "executable": true
@@ -135,7 +133,7 @@ Example response:
   "missingRecommended": ["launch"],
   "hints": [
     "Detected a Swift package manifest.",
-    "Detected shell harness scripts under scripts/harness."
+    "Detected shell scripts under Scripts/."
   ]
 }
 ```
@@ -232,4 +230,4 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
 
 ## Full API reference
 
-See [API.md](/task-workspaces/z4fi8BH5uiWftfztCuA-Q/docs/API.md).
+See [LLMs.txt](/task-workspaces/z4fi8BH5uiWftfztCuA-Q/docs/LLMs.txt).

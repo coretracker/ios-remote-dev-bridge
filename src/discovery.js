@@ -98,6 +98,7 @@ const COMMAND_DEFINITIONS = {
 
 const RECOMMENDED_COMMAND_KEYS = ['setup', 'checks', 'build', 'tests', 'launch', 'pr'];
 const REPO_ROOT_MARKERS = ['.git', 'package.json', 'Makefile', 'Package.swift', 'Package.resolved'];
+const SCRIPT_DIR_CANDIDATES = ['Scripts', 'scripts'];
 
 async function readJson(filePath) {
   try {
@@ -151,11 +152,11 @@ async function hasRepositoryMarker(repoPath) {
     return true;
   }
 
-  if (await fileExists(path.join(repoPath, 'scripts', 'harness'))) {
+  if (await fileExists(path.join(repoPath, 'scripts'))) {
     return true;
   }
 
-  return fileExists(path.join(repoPath, 'Scripts', 'harness'));
+  return fileExists(path.join(repoPath, 'Scripts'));
 }
 
 async function detectRepoRoot(inputPath) {
@@ -268,6 +269,53 @@ async function resolveScriptCandidate(repoRoot, candidates) {
   return null;
 }
 
+async function listShellScripts(repoRoot) {
+  const collected = [];
+
+  async function walkScriptsDir(relativeDir) {
+    const absoluteDir = path.join(repoRoot, relativeDir);
+    let entries = [];
+    try {
+      entries = await fs.readdir(absoluteDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const relPath = path.join(relativeDir, entry.name);
+      if (entry.isDirectory()) {
+        await walkScriptsDir(relPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith('.sh')) {
+        continue;
+      }
+
+      const absolutePath = path.join(repoRoot, relPath);
+      let stat;
+      try {
+        stat = await fs.stat(absolutePath);
+      } catch {
+        continue;
+      }
+
+      const realPath = await fs.realpath(absolutePath).catch(() => absolutePath);
+      collected.push({
+        relativePath: relPath.split(path.sep).join('/'),
+        absolutePath: realPath,
+        exists: true,
+        executable: Boolean(stat.mode & 0o111)
+      });
+    }
+  }
+
+  for (const dirName of SCRIPT_DIR_CANDIDATES) {
+    await walkScriptsDir(dirName);
+  }
+
+  return collected;
+}
+
 function commandForPackageScript(packageManager, scriptName) {
   const manager = packageManager || 'npm';
   return {
@@ -375,13 +423,14 @@ async function discoverRepository(inputPath) {
   const repoRoot = await detectRepoRoot(inputPath);
   const scripts = await readPackageScripts(repoRoot);
   const makeTargets = await parseMakeTargets(repoRoot);
+  const shellScripts = await listShellScripts(repoRoot);
   const packageManager = await detectPackageManager(repoRoot);
   const hasSwiftPackage = await fileExists(path.join(repoRoot, 'Package.swift'));
   const hasGithubActions = await fileExists(path.join(repoRoot, '.github', 'workflows'));
   const hasFastlane = await fileExists(path.join(repoRoot, 'fastlane', 'Fastfile'));
   const xcodeProjectPresent = await hasXcodeProject(repoRoot);
-  const hasLowerHarness = await fileExists(path.join(repoRoot, 'scripts', 'harness'));
-  const hasUpperHarness = await fileExists(path.join(repoRoot, 'Scripts', 'harness'));
+  const hasLowerScripts = await fileExists(path.join(repoRoot, 'scripts'));
+  const hasUpperScripts = await fileExists(path.join(repoRoot, 'Scripts'));
   const repoType = classifyRepoType({
     hasNodeMetadata: Boolean(packageManager),
     hasSwiftPackage,
@@ -432,6 +481,21 @@ async function discoverRepository(inputPath) {
     missing[key] = buildMissingCommand(key, definition);
   }
 
+  for (const scriptFile of shellScripts) {
+    const scriptName = path.basename(scriptFile.relativePath, '.sh');
+    if (!scriptName || commandMap[scriptName]) {
+      continue;
+    }
+
+    commandMap[scriptName] = {
+      key: scriptName,
+      source: 'script-file',
+      sourceId: scriptFile.relativePath,
+      discovered: true,
+      ...commandForScriptFile(scriptFile)
+    };
+  }
+
   const hints = [];
   if (hasSwiftPackage) {
     hints.push('Detected a Swift package manifest.');
@@ -445,11 +509,11 @@ async function discoverRepository(inputPath) {
   if (hasGithubActions) {
     hints.push('Detected GitHub Actions workflows.');
   }
-  if (hasLowerHarness) {
-    hints.push('Detected shell harness scripts under scripts/harness.');
+  if (hasLowerScripts) {
+    hints.push('Detected shell scripts under scripts/.');
   }
-  if (hasUpperHarness) {
-    hints.push('Detected shell harness scripts under Scripts/harness.');
+  if (hasUpperScripts) {
+    hints.push('Detected shell scripts under Scripts/.');
   }
   if (!Object.keys(commandMap).length) {
     hints.push('No recognized repo workflows were discovered.');
@@ -461,6 +525,7 @@ async function discoverRepository(inputPath) {
     repoType,
     packageManager: packageManager || 'unknown',
     scripts,
+    shellScripts: shellScripts.map((item) => item.relativePath),
     makeTargets,
     commands: commandMap,
     missing,
