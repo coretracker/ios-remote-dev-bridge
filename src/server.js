@@ -117,6 +117,10 @@ function validateJobInput(body) {
     return { ok: false, message: "Field 'env' must be an object." };
   }
 
+  if (body.release !== undefined && (typeof body.release !== 'object' || Array.isArray(body.release) || body.release === null)) {
+    return { ok: false, message: "Field 'release' must be an object." };
+  }
+
   const timeoutMsRaw = body.timeoutMs === undefined ? config.defaultTimeoutMs : Number(body.timeoutMs);
   const timeoutMs = Number.isFinite(timeoutMsRaw) ? Math.max(1_000, Math.min(timeoutMsRaw, config.maxTimeoutMs)) : config.defaultTimeoutMs;
 
@@ -130,6 +134,12 @@ function validateJobInput(body) {
       repoRef: typeof body.repoRef === 'string' ? body.repoRef.trim() : '',
       timeoutMs,
       deterministic: body.deterministic && typeof body.deterministic === 'object' ? body.deterministic : {},
+      release: {
+        app: body.release && body.release.app !== undefined ? String(body.release.app).trim() : '',
+        version: body.release && body.release.version !== undefined ? String(body.release.version).trim() : '',
+        build: body.release && body.release.build !== undefined ? String(body.release.build).trim() : '',
+        summary: body.release && body.release.summary !== undefined ? String(body.release.summary).trim() : ''
+      },
       idempotencyKey: typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
         ? body.idempotencyKey.trim()
         : ''

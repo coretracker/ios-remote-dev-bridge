@@ -246,6 +246,10 @@ function pickCandidate(candidates, existsFn) {
 
 async function resolveScriptCandidate(repoRoot, candidates) {
   for (const relPath of candidates) {
+    if (!(await pathExistsWithExactCase(repoRoot, relPath))) {
+      continue;
+    }
+
     const absolutePath = path.join(repoRoot, relPath);
     try {
       const stat = await fs.stat(absolutePath);
@@ -267,6 +271,27 @@ async function resolveScriptCandidate(repoRoot, candidates) {
   }
 
   return null;
+}
+
+async function pathExistsWithExactCase(repoRoot, relPath) {
+  const segments = relPath.split('/').filter(Boolean);
+  let current = repoRoot;
+
+  for (const segment of segments) {
+    let entries = [];
+    try {
+      entries = await fs.readdir(current);
+    } catch {
+      return false;
+    }
+
+    if (!entries.includes(segment)) {
+      return false;
+    }
+    current = path.join(current, segment);
+  }
+
+  return true;
 }
 
 async function listShellScripts(repoRoot) {

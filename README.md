@@ -155,6 +155,12 @@ curl -X POST http://localhost:3000/jobs \
       "CI": "1",
       "SIMULATOR_DEVICE_NAME": "iPhone 16"
     },
+    "release": {
+      "app": "MyApp",
+      "version": "2.4.0",
+      "build": "438",
+      "summary": "Hotfix build for login crash and telemetry improvements."
+    },
     "deterministic": {
       "simulatorName": "iPhone 16",
       "simulatorOS": "iOS-18-5"
@@ -178,6 +184,7 @@ Notes:
 
 - `POST /jobs` returns `job.id`, not a top-level `jobId`
 - early responses may still show empty `commandDisplay` and `repoRoot`
+- when `SLACK_BOT_TOKEN` and `SLACK_CHANNEL` are set and a job outputs `.ipa` artifacts, the bridge posts app/version/build/summary to Slack from `release`
 
 ### Check job status
 

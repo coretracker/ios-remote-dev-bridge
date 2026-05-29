@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
 const { discoverRepository, resolveCommand } = require('./discovery');
+const { buildIpaSlackPayload, postSlackMessage } = require('./slack');
 const {
   collectSecrets,
   ensureDir,
@@ -93,7 +94,8 @@ class JobManager {
       error: job.error,
       cleanedUpAt: job.cleanedUpAt,
       artifactCount: job.artifacts.length,
-      envRejected: job.envRejected
+      envRejected: job.envRejected,
+      release: { ...job.release }
     };
   }
 
@@ -120,7 +122,8 @@ class JobManager {
       env: input.env || {},
       repoPath,
       repoRef: input.repoRef || '',
-      timeoutMs: input.timeoutMs
+      timeoutMs: input.timeoutMs,
+      release: input.release || {}
     };
 
     if (input.idempotencyKey) {
@@ -162,6 +165,7 @@ class JobManager {
       requestedEnv: input.env || {},
       args: Array.isArray(input.args) ? input.args.map((entry) => String(entry)) : [],
       deterministic: input.deterministic || {},
+      release: input.release || { app: '', version: '', build: '', summary: '' },
       queuedAt: createdAt,
       startedAt: null,
       finishedAt: null,
@@ -378,6 +382,7 @@ class JobManager {
       }
 
       await this.collectArtifacts(job);
+      await this.notifySlackForIpaIfNeeded(job);
 
       this.logger('info', 'job_finished', {
         jobId: job.id,
@@ -848,7 +853,7 @@ class JobManager {
   isInterestingArtifact(filePath) {
     const lower = filePath.toLowerCase();
     const artifactExtensions = [
-      '.log', '.txt', '.xml', '.json', '.html', '.xcresult', '.xcarchive', '.xcactivitylog', '.trace', '.png', '.jpg', '.jpeg', '.mp4', '.zip'
+      '.log', '.txt', '.xml', '.json', '.html', '.xcresult', '.xcarchive', '.xcactivitylog', '.trace', '.png', '.jpg', '.jpeg', '.mp4', '.zip', '.ipa'
     ];
 
     if (artifactExtensions.some((ext) => lower.endsWith(ext))) {
@@ -937,6 +942,49 @@ class JobManager {
       sizeBytes: stat.size,
       kind: stat.isDirectory() ? 'directory' : 'file'
     };
+  }
+
+  async notifySlackForIpaIfNeeded(job) {
+    if (job.status !== 'passed') {
+      return;
+    }
+
+    if (!this.config.slackBotToken || !this.config.slackChannel) {
+      return;
+    }
+
+    const ipaArtifacts = job.artifacts.filter((artifact) => artifact.kind === 'file' && artifact.name.toLowerCase().endsWith('.ipa'));
+    if (!ipaArtifacts.length) {
+      return;
+    }
+
+    const payload = buildIpaSlackPayload({
+      app: job.release.app,
+      version: job.release.version,
+      build: job.release.build,
+      summary: job.release.summary,
+      channel: this.config.slackChannel,
+      ipaNames: ipaArtifacts.map((artifact) => artifact.name)
+    });
+
+    try {
+      await postSlackMessage(this.config.slackBotToken, payload);
+      await this.appendLog(job, 'system', `Slack notification sent for IPA upload (${ipaArtifacts.length} file(s)).`);
+      this.logger('info', 'slack_ipa_notification_sent', {
+        jobId: job.id,
+        ipaCount: ipaArtifacts.length,
+        app: job.release.app || '',
+        version: job.release.version || '',
+        build: job.release.build || ''
+      });
+    } catch (error) {
+      await this.appendLog(job, 'system', `Slack notification failed: ${error.message}`);
+      this.logger('error', 'slack_ipa_notification_failed', {
+        jobId: job.id,
+        ipaCount: ipaArtifacts.length,
+        message: error.message
+      });
+    }
   }
 
   getArtifacts(jobId) {
