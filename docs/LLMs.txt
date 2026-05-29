@@ -191,11 +191,6 @@ Body:
 - `deterministic` optional object
 - `deterministic.simulatorName` optional
 - `deterministic.simulatorOS` optional
-- `release` optional object
-- `release.app` optional (used for IPA Slack message)
-- `release.version` optional (used for IPA Slack message)
-- `release.build` optional (used for IPA Slack message)
-- `release.summary` optional (used for IPA Slack message)
 
 Example:
 
@@ -210,13 +205,7 @@ curl -X POST http://localhost:3000/jobs \
     "args": [],
     "env": { "CI": "1" },
     "timeoutMs": 1200000,
-    "idempotencyKey": "build-main-0001",
-    "release": {
-      "app": "MyApp",
-      "version": "2.4.0",
-      "build": "438",
-      "summary": "Hotfix build for login crash and telemetry improvements."
-    }
+    "idempotencyKey": "build-main-0001"
   }'
 ```
 

@@ -119,9 +119,7 @@ function buildConfig() {
     rateLimitMaxRequests: asInt(process.env.RATE_LIMIT_MAX_REQUESTS, 120, 1, 10_000),
     simulatorDevice: process.env.DEFAULT_SIMULATOR_DEVICE || '',
     simulatorOS: process.env.DEFAULT_SIMULATOR_OS || '',
-    logLineLimit: asInt(process.env.LOG_LINE_LIMIT, 20_000, 100, 1_000_000),
-    slackBotToken: (process.env.SLACK_BOT_TOKEN || '').trim(),
-    slackChannel: (process.env.SLACK_CHANNEL || '').trim()
+    logLineLimit: asInt(process.env.LOG_LINE_LIMIT, 20_000, 100, 1_000_000)
   };
 }
 
