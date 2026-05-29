@@ -30,6 +30,7 @@ Returns command allowlist, executable allowlist, and tool availability/version i
 - `xcodebuild`
 - `xcrun`
 - `bundle`
+- `sh`
 
 Example:
 

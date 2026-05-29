@@ -2,7 +2,7 @@ const path = require('path');
 require('dotenv').config();
 
 const CANONICAL_COMMAND_KEYS = ['setup', 'checks', 'build', 'tests', 'launch', 'pr'];
-const ALLOWED_EXECUTABLES = ['swift', 'xcodebuild', 'xcrun', 'bundle'];
+const ALLOWED_EXECUTABLES = ['swift', 'xcodebuild', 'xcrun', 'bundle', 'sh'];
 
 function asInt(value, fallback, min, max) {
   if (value === undefined || value === null || value === '') {

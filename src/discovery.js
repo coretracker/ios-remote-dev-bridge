@@ -19,6 +19,7 @@ const SCRIPT_FALLBACKS = {
   launch: ['scripts/run.sh', 'scripts/launch.sh'],
   pr: ['scripts/pr-ready.sh']
 };
+const SCRIPT_DIR_CANDIDATES = ['Scripts', 'scripts'];
 
 async function readJson(filePath) {
   try {
@@ -129,6 +130,27 @@ async function findScriptFallback(repoRoot, key) {
   return '';
 }
 
+async function listShellScripts(repoRoot) {
+  const results = [];
+  for (const dirName of SCRIPT_DIR_CANDIDATES) {
+    const dirPath = path.join(repoRoot, dirName);
+    let entries = [];
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.sh')) {
+        continue;
+      }
+      results.push(`${dirName}/${entry.name}`);
+    }
+  }
+  return results;
+}
+
 function commandForPackageScript(packageManager, scriptName) {
   if (packageManager === 'pnpm') {
     return {
@@ -196,6 +218,7 @@ async function discoverRepository(inputPath) {
   const repoRoot = await detectRepoRoot(inputPath);
   const scripts = await readPackageScripts(repoRoot);
   const makeTargets = await parseMakeTargets(repoRoot);
+  const shellScripts = await listShellScripts(repoRoot);
   const packageManager = detectPackageManager(repoRoot);
 
   const commandMap = {};
@@ -248,6 +271,23 @@ async function discoverRepository(inputPath) {
     };
   }
 
+  for (const relPath of shellScripts) {
+    const scriptName = path.basename(relPath, '.sh');
+    if (!scriptName || commandMap[scriptName]) {
+      continue;
+    }
+
+    commandMap[scriptName] = {
+      key: scriptName,
+      source: 'script-file',
+      sourceId: relPath,
+      type: 'script-file',
+      command: 'sh',
+      args: [relPath],
+      display: `sh ${relPath}`
+    };
+  }
+
   const hasFastlane = await fileExists(path.join(repoRoot, 'fastlane', 'Fastfile'));
   const hasGithubActions = await fileExists(path.join(repoRoot, '.github', 'workflows'));
   const hasXcodeProject = (await fs.readdir(repoRoot).catch(() => []))
@@ -269,6 +309,7 @@ async function discoverRepository(inputPath) {
     repoRoot,
     packageManager,
     scripts,
+    shellScripts,
     makeTargets,
     commands: commandMap,
     missing,

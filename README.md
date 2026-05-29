@@ -4,8 +4,8 @@ A Node.js HTTP service that lets a Linux-based coding agent trigger and monitor 
 
 The service:
 - discovers available workflows in any target repo at runtime
-- runs only allowlisted command keys (`setup`, `checks`, `build`, `tests`, `launch`, `pr` by default)
-- executes only these tools: `swift`, `xcodebuild`, `xcrun`, `bundle`
+- runs canonical command keys (`setup`, `checks`, `build`, `tests`, `launch`, `pr` by default) plus discovered script keys
+- executes only these tools: `swift`, `xcodebuild`, `xcrun`, `bundle`, `sh`
 - executes jobs asynchronously with queueing, cancellation, timeout, and per-job isolated workspace
 - streams logs and exposes artifacts through HTTP
 
@@ -14,7 +14,7 @@ The service:
 You provide a `repoPath` when creating a job. The service then discovers commands from:
 - `package.json` scripts
 - `Makefile` targets
-- common script files (for example `scripts/test.sh`)
+- script files in `Scripts/` or `scripts/` (for example `Scripts/harness.sh`)
 
 If a command key is not discoverable, the API returns a clear `not found` error.
 
@@ -57,7 +57,7 @@ Service default: `http://localhost:3000`
 
 - Token auth (`Authorization: Bearer <API_TOKEN>`)
 - Command key allowlist only (no arbitrary shell endpoint)
-- Executable allowlist only: `swift`, `xcodebuild`, `xcrun`, `bundle`
+- Executable allowlist only: `swift`, `xcodebuild`, `xcrun`, `bundle`, `sh`
 - Environment variable filtering (`ALLOWED_ENV_*`)
 - Secret redaction in logs
 - In-memory rate limiting
@@ -71,7 +71,7 @@ Each job runs in an isolated workspace under `WORK_ROOT/<job-id>` with:
 
 ## API reference
 
-See [API.md](/task-workspaces/Y4rX37Vw-NR5mlg5vIzIH/docs/API.md).
+See [LLMs.txt](/task-workspaces/Y4rX37Vw-NR5mlg5vIzIH/docs/LLMs.txt).
 
 ## Example requests
 
