@@ -609,14 +609,7 @@ class JobManager {
   }
 
   buildExecutionEnv(job, acceptedEnv) {
-    const base = {};
-    const passthroughKeys = ['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'TMPDIR', 'DEVELOPER_DIR', 'SDKROOT'];
-
-    for (const key of passthroughKeys) {
-      if (process.env[key]) {
-        base[key] = process.env[key];
-      }
-    }
+    const base = { ...process.env };
 
     const deterministic = {
       BRIDGE_JOB_ID: job.id,

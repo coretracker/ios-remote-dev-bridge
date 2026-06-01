@@ -67,3 +67,32 @@ test('jobs run in the original repo folder when no repoRef is requested', async 
   assert.equal(job.repoWorkspace, repoRoot);
   assert.notEqual(job.repoWorkspace, job.workspaceClonePath);
 });
+
+test('buildExecutionEnv inherits full process env and allows request overrides', () => {
+  const manager = new JobManager(createConfig(), () => {});
+  const previous = process.env.BRIDGE_TEST_FROM_PROCESS;
+  process.env.BRIDGE_TEST_FROM_PROCESS = 'from-process';
+
+  try {
+    const env = manager.buildExecutionEnv({
+      id: 'job-test',
+      jobRoot: '/tmp/job-root',
+      repoWorkspace: '/tmp/repo',
+      derivedDataDir: '/tmp/dd',
+      deterministic: {}
+    }, {
+      BRIDGE_TEST_FROM_PROCESS: 'from-request',
+      BRIDGE_TEST_CUSTOM: 'custom'
+    });
+
+    assert.equal(env.BRIDGE_TEST_FROM_PROCESS, 'from-request');
+    assert.equal(env.BRIDGE_TEST_CUSTOM, 'custom');
+    assert.equal(env.PATH, process.env.PATH);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.BRIDGE_TEST_FROM_PROCESS;
+    } else {
+      process.env.BRIDGE_TEST_FROM_PROCESS = previous;
+    }
+  }
+});
