@@ -10,10 +10,6 @@ function createConfig() {
   return {
     workRoot: '/tmp/bridge-test-work',
     redactionKeywords: ['TOKEN', 'SECRET', 'PASSWORD', 'KEY', 'AUTH', 'CREDENTIAL'],
-    allowPatterns: {
-      prefixes: ['CI_', 'APP_', 'XCODE_', 'SIM_', 'FASTLANE_', 'BUILD_', 'TEST_', 'HARNESS_'],
-      exactKeys: new Set(['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'DEVELOPER_DIR', 'SDKROOT', 'TMPDIR', 'HARNESS_FORMAT_MODE'])
-    },
     allowedExecutables: [],
     allowedCommands: [],
     commandOverrides: {},
@@ -27,20 +23,22 @@ function createConfig() {
   };
 }
 
-test('filterEnv accepts HARNESS_FORMAT_MODE and HARNESS_ prefixed variables', () => {
+test('normalizeEnv accepts all provided environment variables', () => {
   const manager = new JobManager(createConfig(), () => {});
 
-  const { accepted, rejected } = manager.filterEnv({
+  const accepted = manager.normalizeEnv({
     HARNESS_FORMAT_MODE: 'apply',
     HARNESS_OTHER_FLAG: '1',
-    NOT_ALLOWED: 'x'
+    NOT_ALLOWED: 'x',
+    NULLISH_VALUE: null
   });
 
   assert.deepEqual(accepted, {
     HARNESS_FORMAT_MODE: 'apply',
-    HARNESS_OTHER_FLAG: '1'
+    HARNESS_OTHER_FLAG: '1',
+    NOT_ALLOWED: 'x',
+    NULLISH_VALUE: ''
   });
-  assert.deepEqual(rejected, ['NOT_ALLOWED']);
 });
 
 test('jobs run in the original repo folder when no repoRef is requested', async (t) => {

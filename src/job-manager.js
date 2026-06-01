@@ -314,14 +314,10 @@ class JobManager {
 
       job.commandDisplay = resolved.display;
 
-      const { accepted, rejected } = this.filterEnv(job.requestedEnv);
-      job.envRejected = rejected;
+      const accepted = this.normalizeEnv(job.requestedEnv);
+      job.envRejected = [];
       const runEnv = this.buildExecutionEnv(job, accepted);
       const secrets = redactionSecrets.concat(collectSecrets(accepted, this.config.redactionKeywords));
-
-      if (rejected.length) {
-        await this.appendLog(job, 'system', `Rejected env keys: ${rejected.join(', ')}`, secrets);
-      }
 
       await this.appendLog(job, 'system', `Starting command: ${resolved.display}`, secrets);
       if (job.repoRef) {
@@ -599,26 +595,17 @@ class JobManager {
     };
   }
 
-  filterEnv(envInput) {
+  normalizeEnv(envInput) {
     const incoming = envInput && typeof envInput === 'object' ? envInput : {};
     const accepted = {};
-    const rejected = [];
 
     for (const [rawKey, rawValue] of Object.entries(incoming)) {
       const key = String(rawKey);
       const value = rawValue === undefined || rawValue === null ? '' : String(rawValue);
-      const isAllowedExact = this.config.allowPatterns.exactKeys.has(key);
-      const isAllowedPrefix = this.config.allowPatterns.prefixes.some((prefix) => key.startsWith(prefix));
-
-      if (!isAllowedExact && !isAllowedPrefix) {
-        rejected.push(key);
-        continue;
-      }
-
       accepted[key] = value;
     }
 
-    return { accepted, rejected };
+    return accepted;
   }
 
   buildExecutionEnv(job, acceptedEnv) {

@@ -52,10 +52,6 @@ function asList(value, fallback) {
     .filter(Boolean);
 }
 
-function mergeUnique(base, extra) {
-  return Array.from(new Set([...(base || []), ...(extra || [])]));
-}
-
 function asJson(value, fallback) {
   if (!value) {
     return fallback;
@@ -68,13 +64,6 @@ function asJson(value, fallback) {
   }
 }
 
-function compileAllowPatterns(prefixes, exactKeys) {
-  return {
-    prefixes,
-    exactKeys: new Set(exactKeys)
-  };
-}
-
 function resolveWorkRoot() {
   const configured = process.env.WORK_ROOT || '.bridge-work';
   return path.isAbsolute(configured)
@@ -83,19 +72,6 @@ function resolveWorkRoot() {
 }
 
 function buildConfig() {
-  const defaultAllowedEnvPrefixes = ['CI_', 'APP_', 'XCODE_', 'SIM_', 'FASTLANE_', 'BUILD_', 'TEST_', 'HARNESS_'];
-  const defaultAllowedEnvKeys = ['PATH', 'HOME', 'SHELL', 'LANG', 'LC_ALL', 'TERM', 'DEVELOPER_DIR', 'SDKROOT', 'TMPDIR', 'HARNESS_FORMAT_MODE'];
-
-  const allowedEnvPrefixes = mergeUnique(
-    defaultAllowedEnvPrefixes,
-    asList(process.env.ALLOWED_ENV_PREFIXES, [])
-  );
-
-  const allowedEnvKeys = mergeUnique(
-    defaultAllowedEnvKeys,
-    asList(process.env.ALLOWED_ENV_KEYS, [])
-  );
-
   const allowlistExtra = asList(process.env.ALLOWED_COMMAND_KEYS, []);
 
   const configuredOverrides = asJson(process.env.COMMAND_OVERRIDES_JSON, {});
@@ -113,7 +89,6 @@ function buildConfig() {
     allowedCommands: Array.from(new Set(CANONICAL_COMMAND_KEYS.concat(allowlistExtra))),
     allowedExecutables: ALLOWED_EXECUTABLES.slice(),
     commandOverrides: configuredOverrides,
-    allowPatterns: compileAllowPatterns(allowedEnvPrefixes, allowedEnvKeys),
     redactionKeywords: asList(process.env.REDACT_ENV_KEYWORDS, ['TOKEN', 'SECRET', 'PASSWORD', 'KEY', 'AUTH', 'CREDENTIAL']),
     rateLimitWindowMs: asInt(process.env.RATE_LIMIT_WINDOW_MS, 60 * 1000, 1_000, 60 * 60 * 1000),
     rateLimitMaxRequests: asInt(process.env.RATE_LIMIT_MAX_REQUESTS, 120, 1, 10_000),

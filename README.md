@@ -37,7 +37,7 @@ If a command key is not found, the API explains what was checked and how to fix 
 - No arbitrary shell endpoint
 - Non-script commands are limited to approved tools such as `swift`, `xcodebuild`, `xcrun`, `bundle`, and `swiftformat`
 - Script execution is limited to discovered repo-local workflow files
-- Environment variables are filtered
+- Environment variables from job requests are passed through to the executed command
 - Sensitive values are hidden in logs
 - Basic rate limiting is enabled
 
