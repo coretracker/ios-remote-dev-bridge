@@ -11,7 +11,7 @@ Recommended order:
 1. `GET /health`
 2. `GET /discover?repoPath=...`
 3. `POST /jobs`
-4. `GET /jobs/:id`
+4. `GET /jobs` or `GET /jobs/:id`
 5. `GET /jobs/:id/logs`
 6. `GET /jobs/:id/artifacts`
 7. `POST /jobs/:id/cancel` if needed
@@ -229,7 +229,38 @@ Notes:
 - use `job.id` for later requests
 - `commandDisplay` and `repoRoot` can be empty at first
 
-## 5. `GET /jobs/:id`
+## 5a. `GET /jobs`
+
+Purpose:
+
+- list current retained jobs
+- inspect queue metrics in one request
+
+Query params:
+
+- `status` optional, filters by one job state
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer TOKEN" \
+  http://localhost:3000/jobs
+```
+
+Response:
+
+```json
+{
+  "jobs": [],
+  "metrics": {
+    "total": 0,
+    "running": 0,
+    "queued": 0
+  }
+}
+```
+
+## 5b. `GET /jobs/:id`
 
 Purpose:
 
@@ -270,6 +301,15 @@ curl -H "Authorization: Bearer TOKEN" \
 curl -N -H "Authorization: Bearer TOKEN" \
   "http://localhost:3000/jobs/<job-id>/logs?follow=true"
 ```
+
+Browser clients that cannot send authorization headers with native `EventSource` can first call:
+
+```bash
+curl -X POST -H "Authorization: Bearer TOKEN" \
+  http://localhost:3000/jobs/<job-id>/log-stream-token
+```
+
+Then pass `streamToken` on the follow request. Stream tokens are single-use and expire after 60 seconds.
 
 ## 7. `GET /jobs/:id/artifacts`
 

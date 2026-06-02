@@ -75,13 +75,15 @@ npm start
 
 Default address: `http://localhost:3000`
 
+Browser UI: `http://localhost:3000/ui/`
+
 ## Recommended agent flow
 
 1. Call `GET /health`
 2. Call `GET /discover?repoPath=...`
 3. Choose a discovered command key
 4. Call `POST /jobs`
-5. Poll `GET /jobs/:id`
+5. Poll `GET /jobs` or `GET /jobs/:id`
 6. Read `GET /jobs/:id/logs`
 7. Fetch `GET /jobs/:id/artifacts` if needed
 8. Call `POST /jobs/:id/cancel` if needed
@@ -180,6 +182,11 @@ Notes:
 - early responses may still show empty `commandDisplay` and `repoRoot`
 
 ### Check job status
+
+```bash
+curl -H "Authorization: Bearer TOKEN" \
+  http://localhost:3000/jobs
+```
 
 ```bash
 curl -H "Authorization: Bearer TOKEN" \

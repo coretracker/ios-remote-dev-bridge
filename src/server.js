@@ -13,8 +13,15 @@ const jobManager = new JobManager(config, logEvent);
 
 const serviceStart = Date.now();
 const rateBuckets = new Map();
+const streamTokens = new Map();
 
 app.use(express.json({ limit: config.requestBodyLimit }));
+
+app.get('/', (req, res) => {
+  res.redirect('/ui/');
+});
+
+app.use('/ui', express.static(path.join(__dirname, '..', 'public')));
 
 app.use((req, res, next) => {
   const requestId = req.header('x-request-id') || generateId('req');
@@ -37,8 +44,18 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (req.path === '/health') {
+  if (req.path === '/health' || req.path.startsWith('/ui')) {
     return next();
+  }
+
+  const streamToken = typeof req.query.streamToken === 'string' ? req.query.streamToken : '';
+  if (req.path.endsWith('/logs') && streamToken) {
+    const token = streamTokens.get(streamToken);
+    const jobId = req.path.match(/^\/jobs\/([^/]+)\/logs$/)?.[1] || '';
+    if (token && token.jobId === jobId && token.expiresAt > Date.now()) {
+      streamTokens.delete(streamToken);
+      return next();
+    }
   }
 
   const token = req.header('authorization') || '';
@@ -243,6 +260,18 @@ app.post('/jobs', async (req, res) => {
   }
 });
 
+app.get('/jobs', (req, res) => {
+  const status = typeof req.query.status === 'string' ? req.query.status.trim() : '';
+  const jobs = jobManager.listJobs()
+    .filter((job) => !status || job.status === status)
+    .sort((a, b) => new Date(b.queuedAt).getTime() - new Date(a.queuedAt).getTime());
+
+  return res.json({
+    jobs,
+    metrics: jobManager.getMetrics()
+  });
+});
+
 app.get('/jobs/:id', (req, res) => {
   const job = jobManager.getJob(req.params.id);
   if (!job) {
@@ -252,6 +281,33 @@ app.get('/jobs/:id', (req, res) => {
   }
 
   return res.json(job);
+});
+
+app.post('/jobs/:id/log-stream-token', (req, res) => {
+  const job = jobManager.getJob(req.params.id);
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job not found.'
+    });
+  }
+
+  const token = generateId('stream');
+  const expiresAt = Date.now() + 60_000;
+  streamTokens.set(token, {
+    jobId: req.params.id,
+    expiresAt
+  });
+
+  for (const [storedToken, stored] of streamTokens.entries()) {
+    if (stored.expiresAt <= Date.now()) {
+      streamTokens.delete(storedToken);
+    }
+  }
+
+  return res.json({
+    streamToken: token,
+    expiresAt: new Date(expiresAt).toISOString()
+  });
 });
 
 function formatLogLine(line) {
@@ -400,7 +456,14 @@ app.post('/jobs/:id/cancel', (req, res) => {
   });
 });
 
-app.use((err, req, res) => {
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not found.'
+  });
+});
+
+app.use((err, req, res, next) => {
+  void next;
   logEvent('error', 'unhandled_error', {
     requestId: req.requestId,
     message: err.message

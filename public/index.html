@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Remote Dev Bridge Jobs</title>
+    <link rel="stylesheet" href="/ui/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Remote Dev Bridge</h1>
+        <p id="serviceStatus">Connecting...</p>
+      </div>
+      <form id="authForm" class="auth-form">
+        <label for="tokenInput">API token</label>
+        <input id="tokenInput" type="password" autocomplete="current-password" placeholder="Bearer token">
+        <button type="submit">Save</button>
+      </form>
+    </header>
+
+    <main class="layout">
+      <section class="sidebar" aria-label="Jobs">
+        <div class="panel-head">
+          <div>
+            <h2>Jobs</h2>
+            <p id="jobCount">0 jobs</p>
+          </div>
+          <button id="refreshButton" type="button" title="Refresh jobs">Refresh</button>
+        </div>
+
+        <div class="metrics" aria-label="Job metrics">
+          <div>
+            <span id="metricRunning">0</span>
+            <small>Running</small>
+          </div>
+          <div>
+            <span id="metricQueued">0</span>
+            <small>Queued</small>
+          </div>
+          <div>
+            <span id="metricPassed">0</span>
+            <small>Passed</small>
+          </div>
+          <div>
+            <span id="metricFailed">0</span>
+            <small>Failed</small>
+          </div>
+        </div>
+
+        <form id="createJobForm" class="create-form">
+          <h3>Run job</h3>
+          <label>
+            Repo path
+            <input name="repoPath" type="text" placeholder="/path/to/repo" required>
+          </label>
+          <div class="form-row">
+            <label>
+              Command
+              <input name="commandKey" type="text" value="tests" required>
+            </label>
+            <label>
+              Ref
+              <input name="repoRef" type="text" placeholder="optional">
+            </label>
+          </div>
+          <label>
+            Args
+            <input name="args" type="text" placeholder="space separated">
+          </label>
+          <button type="submit">Start job</button>
+        </form>
+
+        <div id="jobsList" class="jobs-list"></div>
+      </section>
+
+      <section class="details" aria-label="Job details">
+        <div class="details-head">
+          <div>
+            <h2 id="selectedTitle">Select a job</h2>
+            <p id="selectedMeta">Realtime logs appear here.</p>
+          </div>
+          <div class="actions">
+            <button id="followButton" type="button" disabled>Follow</button>
+            <button id="cancelButton" type="button" disabled>Cancel</button>
+          </div>
+        </div>
+
+        <div id="jobSummary" class="summary-grid"></div>
+
+        <div class="log-head">
+          <h3>Logs</h3>
+          <span id="streamState">Idle</span>
+        </div>
+        <pre id="logOutput" class="logs" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
