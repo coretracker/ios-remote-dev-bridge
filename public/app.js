@@ -3,16 +3,23 @@ const state = {
   jobs: [],
   selectedJobId: '',
   logOffset: 0,
+  logLineCount: 0,
+  pendingLogText: '',
+  pendingLogLines: 0,
+  pendingLogFrame: null,
+  logChunks: [],
   events: null,
   pollTimer: null
 };
+
+const LOG_RENDER_LIMIT = 1200;
+const LOG_SNAPSHOT_LIMIT = 800;
 
 const els = {
   serviceStatus: document.getElementById('serviceStatus'),
   authForm: document.getElementById('authForm'),
   tokenInput: document.getElementById('tokenInput'),
   refreshButton: document.getElementById('refreshButton'),
-  createJobForm: document.getElementById('createJobForm'),
   jobsList: document.getElementById('jobsList'),
   jobCount: document.getElementById('jobCount'),
   metricRunning: document.getElementById('metricRunning'),
@@ -23,7 +30,6 @@ const els = {
   selectedMeta: document.getElementById('selectedMeta'),
   jobSummary: document.getElementById('jobSummary'),
   followButton: document.getElementById('followButton'),
-  cancelButton: document.getElementById('cancelButton'),
   streamState: document.getElementById('streamState'),
   logOutput: document.getElementById('logOutput')
 };
@@ -82,9 +88,91 @@ function scrollLogsToBottom() {
   els.logOutput.scrollTop = els.logOutput.scrollHeight;
 }
 
-function appendLogLine(line) {
-  els.logOutput.textContent += `${lineText(line)}\n`;
+function pruneLogOutput() {
+  while (state.logLineCount > LOG_RENDER_LIMIT && state.logChunks.length > 1) {
+    const chunk = state.logChunks.shift();
+    chunk.node.remove();
+    state.logLineCount -= chunk.lineCount;
+  }
+}
+
+function trimLogText(text, lineCount) {
+  if (lineCount <= LOG_RENDER_LIMIT) {
+    return { text, lineCount };
+  }
+
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+
+  const kept = lines.slice(-LOG_RENDER_LIMIT);
+  return {
+    text: `${kept.join('\n')}\n`,
+    lineCount: kept.length
+  };
+}
+
+function flushPendingLogs() {
+  state.pendingLogFrame = null;
+
+  if (!state.pendingLogText) {
+    return;
+  }
+
+  const pending = trimLogText(state.pendingLogText, state.pendingLogLines);
+  if (pending.lineCount >= LOG_RENDER_LIMIT) {
+    state.logChunks = [];
+    state.logLineCount = 0;
+    els.logOutput.textContent = '';
+  }
+
+  const node = document.createTextNode(pending.text);
+  els.logOutput.append(node);
+  state.logChunks.push({
+    node,
+    lineCount: pending.lineCount
+  });
+  state.logLineCount += pending.lineCount;
+  state.pendingLogText = '';
+  state.pendingLogLines = 0;
+
+  pruneLogOutput();
   scrollLogsToBottom();
+}
+
+function queueLogText(text, lineCount) {
+  state.pendingLogText += text;
+  state.pendingLogLines += lineCount;
+
+  if (state.pendingLogFrame === null) {
+    state.pendingLogFrame = requestAnimationFrame(flushPendingLogs);
+  }
+}
+
+function resetLogOutput() {
+  if (state.pendingLogFrame !== null) {
+    cancelAnimationFrame(state.pendingLogFrame);
+  }
+
+  state.pendingLogFrame = null;
+  state.pendingLogText = '';
+  state.pendingLogLines = 0;
+  state.logLineCount = 0;
+  state.logChunks = [];
+  els.logOutput.textContent = '';
+}
+
+function appendLogLine(line) {
+  queueLogText(`${lineText(line)}\n`, 1);
+}
+
+function appendLogLines(lines) {
+  if (!lines.length) {
+    return;
+  }
+
+  queueLogText(`${lines.map(lineText).join('\n')}\n`, lines.length);
 }
 
 function renderMetrics(metrics = {}) {
@@ -137,14 +225,12 @@ function renderSelected(job) {
     els.selectedMeta.textContent = 'Realtime logs appear here.';
     els.jobSummary.innerHTML = '';
     els.followButton.disabled = true;
-    els.cancelButton.disabled = true;
     return;
   }
 
   els.selectedTitle.textContent = job.commandDisplay || job.commandKey || job.id;
   els.selectedMeta.textContent = `${job.id} - ${job.repoRoot || job.repoPath || ''}`;
   els.followButton.disabled = false;
-  els.cancelButton.disabled = !['queued', 'running'].includes(job.status);
   els.jobSummary.innerHTML = `
     <div><strong>${escapeHtml(job.status)}</strong><small>Status</small></div>
     <div><strong>${escapeHtml(formatDuration(job.durationMs))}</strong><small>Duration</small></div>
@@ -167,11 +253,12 @@ async function loadJobs() {
 }
 
 async function loadSnapshot(jobId) {
-  const data = await api(`/jobs/${encodeURIComponent(jobId)}/logs?offset=0&limit=5000`);
-  els.logOutput.textContent = '';
-  for (const line of data.lines || []) {
-    appendLogLine(line);
-  }
+  const summary = await api(`/jobs/${encodeURIComponent(jobId)}/logs?offset=0&limit=1`);
+  const total = summary.total || 0;
+  const offset = Math.max(0, total - LOG_SNAPSHOT_LIMIT);
+  const data = await api(`/jobs/${encodeURIComponent(jobId)}/logs?offset=${offset}&limit=${LOG_SNAPSHOT_LIMIT}`);
+  resetLogOutput();
+  appendLogLines(data.lines || []);
   state.logOffset = data.total || 0;
 }
 
@@ -213,7 +300,10 @@ async function followSelected() {
 
   state.events = new EventSource(streamUrl);
   state.events.onopen = () => setStreamState('Live');
-  state.events.onmessage = (event) => appendLogLine(JSON.parse(event.data));
+  state.events.onmessage = (event) => {
+    appendLogLine(JSON.parse(event.data));
+    state.logOffset += 1;
+  };
   state.events.addEventListener('done', async () => {
     setStreamState('Complete');
     closeStream();
@@ -223,41 +313,6 @@ async function followSelected() {
     setStreamState('Stream disconnected');
     closeStream();
   };
-}
-
-async function cancelSelected() {
-  if (!state.selectedJobId) return;
-  await api(`/jobs/${encodeURIComponent(state.selectedJobId)}/cancel`, {
-    method: 'POST'
-  });
-  await loadJobs();
-}
-
-function parseArgs(value) {
-  return String(value || '')
-    .split(' ')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-async function createJob(event) {
-  event.preventDefault();
-  const data = new FormData(els.createJobForm);
-  const body = {
-    repoPath: String(data.get('repoPath') || '').trim(),
-    commandKey: String(data.get('commandKey') || '').trim(),
-    repoRef: String(data.get('repoRef') || '').trim(),
-    args: parseArgs(data.get('args'))
-  };
-
-  const result = await api('/jobs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-
-  await loadJobs();
-  await selectJob(result.job.id);
 }
 
 function startPolling() {
@@ -284,14 +339,6 @@ els.refreshButton.addEventListener('click', () => {
 });
 els.followButton.addEventListener('click', () => {
   followSelected().catch((error) => setStreamState(error.message));
-});
-els.cancelButton.addEventListener('click', () => {
-  cancelSelected().catch((error) => setStreamState(error.message));
-});
-els.createJobForm.addEventListener('submit', (event) => {
-  createJob(event).catch((error) => {
-    els.serviceStatus.textContent = error.message;
-  });
 });
 
 loadHealth().catch((error) => {

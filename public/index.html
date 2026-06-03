@@ -48,29 +48,6 @@
           </div>
         </div>
 
-        <form id="createJobForm" class="create-form">
-          <h3>Run job</h3>
-          <label>
-            Repo path
-            <input name="repoPath" type="text" placeholder="/path/to/repo" required>
-          </label>
-          <div class="form-row">
-            <label>
-              Command
-              <input name="commandKey" type="text" value="tests" required>
-            </label>
-            <label>
-              Ref
-              <input name="repoRef" type="text" placeholder="optional">
-            </label>
-          </div>
-          <label>
-            Args
-            <input name="args" type="text" placeholder="space separated">
-          </label>
-          <button type="submit">Start job</button>
-        </form>
-
         <div id="jobsList" class="jobs-list"></div>
       </section>
 
@@ -82,7 +59,6 @@
           </div>
           <div class="actions">
             <button id="followButton" type="button" disabled>Follow</button>
-            <button id="cancelButton" type="button" disabled>Cancel</button>
           </div>
         </div>
 
