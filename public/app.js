@@ -195,16 +195,32 @@ function renderJobs() {
   }
 
   for (const job of state.jobs) {
+    const command = job.commandDisplay || job.commandKey || job.id;
+    const path = job.repoRoot || job.repoPath || '';
+    const status = job.status || '';
+
     const item = document.createElement('button');
     item.type = 'button';
     item.className = `job-item${job.id === state.selectedJobId ? ' active' : ''}`;
-    item.innerHTML = `
-      <div class="job-main">
-        <span class="job-command">${escapeHtml(job.commandDisplay || job.commandKey || job.id)}</span>
-        <span class="badge ${job.status}">${escapeHtml(job.status)}</span>
-      </div>
-      <div class="job-sub">${escapeHtml(shortId(job.id))} - ${escapeHtml(job.repoRoot || job.repoPath || '')}</div>
-    `;
+    item.title = `${command}\n${path}`;
+
+    const main = document.createElement('div');
+    main.className = 'job-main';
+
+    const commandEl = document.createElement('span');
+    commandEl.className = 'job-command';
+    commandEl.textContent = command;
+
+    const badge = document.createElement('span');
+    badge.className = `badge ${status}`;
+    badge.textContent = status;
+
+    const sub = document.createElement('div');
+    sub.className = 'job-sub';
+    sub.textContent = `${shortId(job.id)} - ${path}`;
+
+    main.append(commandEl, badge);
+    item.append(main, sub);
     item.addEventListener('click', () => selectJob(job.id));
     els.jobsList.append(item);
   }
@@ -228,8 +244,13 @@ function renderSelected(job) {
     return;
   }
 
-  els.selectedTitle.textContent = job.commandDisplay || job.commandKey || job.id;
-  els.selectedMeta.textContent = `${job.id} - ${job.repoRoot || job.repoPath || ''}`;
+  const command = job.commandDisplay || job.commandKey || job.id;
+  const meta = `${job.id} - ${job.repoRoot || job.repoPath || ''}`;
+
+  els.selectedTitle.textContent = command;
+  els.selectedTitle.title = command;
+  els.selectedMeta.textContent = meta;
+  els.selectedMeta.title = meta;
   els.followButton.disabled = false;
   els.jobSummary.innerHTML = `
     <div><strong>${escapeHtml(job.status)}</strong><small>Status</small></div>

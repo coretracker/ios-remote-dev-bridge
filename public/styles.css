@@ -92,8 +92,12 @@ p {
 .panel-head p,
 .details-head p {
   margin-top: 4px;
+  max-width: 100%;
+  overflow: hidden;
   color: var(--muted);
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .auth-form {
@@ -139,9 +143,17 @@ p {
   gap: 12px;
 }
 
+.panel-head > div,
+.details-head > div:first-child {
+  min-width: 0;
+}
+
 .panel-head h2,
 .details-head h2 {
+  overflow: hidden;
   font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actions {
@@ -185,14 +197,18 @@ p {
 
 .jobs-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin-top: 16px;
+  min-width: 0;
 }
 
 .job-item {
   width: 100%;
+  min-width: 0;
   min-height: 76px;
   padding: 10px;
+  overflow: hidden;
   text-align: left;
 }
 
@@ -205,9 +221,11 @@ p {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .job-command {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -242,6 +260,7 @@ p {
 
 .job-sub {
   margin-top: 8px;
+  max-width: 100%;
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
