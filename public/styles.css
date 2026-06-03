@@ -285,7 +285,8 @@ p {
 }
 
 .logs {
-  min-height: 0;
+  height: min(560px, calc(100vh - 250px));
+  min-height: 280px;
   margin: 0;
   overflow: auto;
   border: 1px solid var(--border);
@@ -315,6 +316,10 @@ p {
 
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .logs {
+    height: 360px;
   }
 }
 

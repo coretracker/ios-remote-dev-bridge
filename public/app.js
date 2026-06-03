@@ -78,12 +78,13 @@ function setStreamState(value) {
   els.streamState.textContent = value;
 }
 
+function scrollLogsToBottom() {
+  els.logOutput.scrollTop = els.logOutput.scrollHeight;
+}
+
 function appendLogLine(line) {
-  const shouldPin = els.logOutput.scrollTop + els.logOutput.clientHeight >= els.logOutput.scrollHeight - 32;
   els.logOutput.textContent += `${lineText(line)}\n`;
-  if (shouldPin) {
-    els.logOutput.scrollTop = els.logOutput.scrollHeight;
-  }
+  scrollLogsToBottom();
 }
 
 function renderMetrics(metrics = {}) {
